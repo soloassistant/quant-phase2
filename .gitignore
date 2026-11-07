@@ -1,0 +1,11 @@
+# 生成物与原始数据：不纳入版本控制
+runs/
+signals/
+data/
+out_oos/
+out_risk/
+out_turnover/
+out_universe/
+.venv/
+__pycache__/
+*.pyc
