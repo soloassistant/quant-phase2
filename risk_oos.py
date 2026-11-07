@@ -8,7 +8,7 @@ OOS 风险调整后三项（夏普 / 最大回撤 / Calmar），两套引擎 × 
   * Sharpe = 日收益均值 / 日收益标准差 × √252；Calmar = CAGR / |最大回撤|
   * 全部为 OOS 拼接净值，不复用全样本指标
 
-运行: D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\risk_oos.py
+运行: python risk_oos.py
 """
 
 import hashlib
@@ -118,7 +118,7 @@ def write_report(meta, blocks, overlap):
     L.append(f"- `builtAt` {meta['builtAt']} ｜ `head` {meta['head']} ｜ "
              f"`risk_oos.py` sha256 前 16 位 **{meta['script_sha256']}** ｜ "
              f"Python {meta['python']} / pandas {meta['pandas']} / numpy {meta['numpy']}")
-    L.append("- 命令：`D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\risk_oos.py`")
+    L.append("- 命令：`python risk_oos.py`")
     L.append("- 全部为 **OOS 拼接净值**，不用全样本指标；Sharpe=日收益均值/标准差×√252，"
              "Calmar=CAGR/|最大回撤|。\n")
 

@@ -214,7 +214,7 @@ def write_report(meta, summary, windows, results):
     L.append(f"- `builtAt` {meta['builtAt']} ｜ `head` {meta['head']} ｜ "
              f"脚本 `oos_multi.py` sha256 前 16 位 **{meta['script_sha256']}** ｜ "
              f"Python {meta['python']} / pandas {meta['pandas']} / numpy {meta['numpy']}")
-    L.append("- 命令：`D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\oos_multi.py`")
+    L.append("- 命令：`python oos_multi.py`")
     L.append("- 对象：横截面主组合（K=3、12-1、无过滤、等权；10 只 ETF）。"
              "硬约束未动：t 收盘信号、t+1 开盘、月度、7bp/边、目标波动 10%、杠杆 ≤1.0、"
              "8 年训练 / 1 年验证 / 1 年步长 / 1 月 purge、中位数选参 + 邻域平坦 0.25。\n")

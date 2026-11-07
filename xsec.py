@@ -1,7 +1,7 @@
 """
 横截面动量（cross-sectional momentum）引擎。
 
-口径与 D:\\Agent\\quant 第一版保持一致:
+口径与第一版时序动量引擎保持一致:
   * t 日收盘信号, t+1 开盘成交
   * 单边 7bp (5bp 佣金 + 2bp 滑点)
   * 月度调仓, 目标波动 10%, 杠杆上限 1.0, 现金 0 收益
@@ -325,14 +325,15 @@ def rolling_median_sharpe(nav: pd.Series, t0, t1):
 # ---------------------------------------------------------------- 元信息
 
 def head_info() -> str:
-    p = Path("d:/Agent/.git/HEAD")
-    if not p.exists():
-        return "n/a（d:/Agent 无 .git, 未伪造）"
-    raw = p.read_text(encoding="utf-8").strip()
-    if raw.startswith("ref:"):
-        ref = Path("d:/Agent/.git") / raw.split(":", 1)[1].strip()
-        return ref.read_text(encoding="utf-8").strip() if ref.exists() else raw
-    return raw
+    try:
+        p = ROOT / ".git" / "HEAD"
+        raw = p.read_text(encoding="utf-8").strip()
+        if raw.startswith("ref:"):
+            ref = ROOT / ".git" / raw.split(":", 1)[1].strip()
+            return ref.read_text(encoding="utf-8").strip() if ref.exists() else raw
+        return raw
+    except Exception:
+        return "n/a"
 
 
 def meta_block() -> dict:

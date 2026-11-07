@@ -1,6 +1,6 @@
 """月度复跑流水线（唯一入口）。
 
-  D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\run_monthly.py
+  python run_monthly.py
 
   * 输出到 runs/<YYYYMMDD_HHMMSS>/，不覆盖任何历史目录
   * 四张表 + 一张对比图 + report.md + metrics.json（含 effective config）

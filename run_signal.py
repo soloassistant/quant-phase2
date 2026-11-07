@@ -1,6 +1,6 @@
 """当期信号导出：这个月该持有什么。
 
-  D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\run_signal.py
+  python run_signal.py
 
 只复用回测同一套引擎/参数（xsec 的 12-1 横截面动量，K=3、等权、目标波动 10%、杠杆 ≤1.0），
 不另写排序或权重逻辑；本文件只做「取信号 + 排版 + 校验」。

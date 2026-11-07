@@ -16,7 +16,7 @@ t 收盘信号、t+1 开盘、月度、单边 7bp、杠杆 ≤1.0）。缺口基
   B. 允许对冲/空头 -> 同一 10 只 ETF，多正动量、空最差负动量，总敞口 <=1.0
   C. 当时可得的池 -> 每个调仓日只允许“上市满 3 年”的标的进入池（point-in-time 可用性）
 
-运行: D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\universe.py
+运行: python universe.py
 """
 
 import hashlib
@@ -231,7 +231,7 @@ def write_report(meta, df, base, bm, start, end):
              f"`universe.py` sha256 前 16 位 **{meta['script_sha256']}** ｜ "
              f"引擎 `engine.py` sha256 前 16 位 **{hashlib.sha256((ROOT/'engine.py').read_bytes()).hexdigest()[:16]}** ｜ "
              f"Python {meta['python']} / pandas {meta['pandas']} / numpy {meta['numpy']}")
-    L.append("- 命令：`D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\universe.py`")
+    L.append("- 命令：`python universe.py`")
     L.append(f"- 样本：{start.date()} → {end.date()}；对象：第一版时序动量"
              "（12 月动量、正动量等权、目标波动 10%、杠杆 ≤1.0），缺口基线 206bp / 换手 355%。")
     L.append("- 硬约束未动：t 收盘信号、t+1 开盘、月度、单边 7bp。标签 `[A]` 实测 / `[B]` 推算。\n")

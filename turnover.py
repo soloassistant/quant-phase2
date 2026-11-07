@@ -17,7 +17,7 @@
 
 固定: t 收盘信号、t+1 开盘、月度、7bp/边、目标波动 10%、杠杆 <=1.0、K=3/12-1/无过滤/等权。
 
-运行: D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\turnover.py
+运行: python turnover.py
 """
 
 import hashlib
@@ -157,7 +157,7 @@ def write_report(meta, df, base, base_gap, bm):
              f"`turnover.py` sha256 前 16 位 **{meta['script_sha256']}** ｜ "
              f"引擎 `engine.py` sha256 前 16 位 **{hashlib.sha256((ROOT/'engine.py').read_bytes()).hexdigest()[:16]}** ｜ "
              f"Python {meta['python']} / pandas {meta['pandas']} / numpy {meta['numpy']}")
-    L.append("- 命令：`D:\\Agent\\quant\\.venv\\Scripts\\python.exe D:\\Agent\\quant-phase2\\turnover.py`")
+    L.append("- 命令：`python turnover.py`")
     L.append(f"- 样本：{base['start']} → {base['end']}（{base['years']:.2f} 年）；对象：横截面主组合 "
              f"K=3 / 12-1 / 无过滤 / 等权，10 只 ETF。")
     L.append("- 硬约束未动：t 收盘信号、t+1 开盘、月度调仓、单边 7bp、目标波动 10%、杠杆 ≤1.0。")
