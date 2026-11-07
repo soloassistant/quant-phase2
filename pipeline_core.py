@@ -14,7 +14,6 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, r"d:\Agent\quant-xsec")
 import engine  # noqa: E402
 import xsec  # noqa: E402
 
@@ -32,7 +31,7 @@ CODE_FILES = (
     ("pipeline_core.py", ROOT / "pipeline_core.py"),
     ("monthly_report.py", ROOT / "monthly_report.py"),
     ("engine.py", ROOT / "engine.py"),
-    ("quant-xsec/xsec.py", Path(r"d:\Agent\quant-xsec\xsec.py")),
+    ("xsec.py", ROOT / "xsec.py"),
 )
 
 

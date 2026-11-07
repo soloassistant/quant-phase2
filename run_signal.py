@@ -21,7 +21,6 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 SIGNALS_DIR = ROOT / "signals"
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, r"d:\Agent\quant-xsec")
 import pipeline_core as pc  # noqa: E402
 import xsec  # noqa: E402
 
@@ -226,7 +225,7 @@ def main():
          f"- 口径锁死：t 收盘信号 / t+1 开盘成交 / 月度 / K={K} / 12-1 动量 / 等权 / 单边 {COST_BP:g}bp / "
          f"目标波动 {TARGET_VOL:.0%} / 杠杆 ≤1.0",
          f"- `signal_sha256` **{signal_sha}** ｜ 脚本 `run_signal.py {sha_file(Path(__file__))[:16]}` ｜ "
-         f"引擎 `xsec.py {sha_file(Path(r'd:\\Agent\\quant-xsec\\xsec.py'))[:16]}`",
+         f"引擎 `xsec.py {sha_file(ROOT / 'xsec.py')[:16]}`",
          f"- `code_sha256` **{pc.code_sha256()}**（参与计算的源码按固定顺序合并哈希）",
          f"- **{DISCLAIMER}**\n",
          "## 本期目标持仓\n"]

@@ -24,7 +24,6 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, r"d:\Agent\quant-xsec")
 import engine  # noqa: E402
 import xsec  # noqa: E402
 

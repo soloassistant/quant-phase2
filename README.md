@@ -3,13 +3,31 @@
 这不是策略优化目录，而是「每月同一口径下，模型现在长什么样」的快照流水线。
 策略结论已定、不再调参；本目录只负责可复现地产出四张表、一张图和一份可对比的运行记录。
 
+## 数据声明
+
+**本仓不含任何行情数据。** 数据需自行获取：
+
+- 来源：Yahoo Finance（`yfinance`），`auto_adjust=True`，起始日 `2006-01-01`；
+- 标的（10 只 ETF）：`SPY`、`QQQ`、`IEF`、`TLT`、`GLD`、`DBC`、`VNQ`、`EFA`、`EEM`、`UUP`；
+- 保存为 `data/<TICKER>.csv`，列 `date,open,high,low,close,volume`；
+- 获取示例：
+
+```python
+import yfinance as yf
+df = yf.download("SPY", start="2006-01-01", auto_adjust=True, actions=False)
+df.reset_index().to_csv("data/SPY.csv", index=False)
+```
+
+- 许可：**Yahoo Finance 条款未授予数据再分发权**，因此本仓不提供任何 CSV/Parquet，请遵守其条款自行获取。
+- 数据缺失时流水线会硬失败并指出缺哪个文件/区间，不做插值或前值填充。
+
 ## 一条命令
 
 ```powershell
-D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_monthly.py
+python run_monthly.py
 ```
 
-- 输出到 `d:\Agent\quant-phase2\runs\<YYYYMMDD_HHMMSS>\`，每次新建目录，**不覆盖任何历史**。
+- 输出到 `runs\<YYYYMMDD_HHMMSS>\`，每次新建目录，**不覆盖任何历史**。
 - 同一天重复运行会追加 `_01`、`_02` 后缀，旧目录原样保留。
 - 可选 `--end YYYY-MM-DD`：把本次运行的数据截止钉在指定日，用于和上一期做「同输入、只比参数」。
 
@@ -35,10 +53,10 @@ D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_monthly.py
 `xsec.py` 与同一组锁死口径，不另写排序或权重逻辑。
 
 ```powershell
-D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_signal.py
+python run_signal.py
 ```
 
-- 输出到 `d:\Agent\quant-phase2\signals\<YYYYMMDD_HHMMSS>\`，每次新建目录，不覆盖历史。
+- 输出到 `signals\<YYYYMMDD_HHMMSS>\`，每次新建目录，不覆盖历史。
 - `holdings.csv`：代码、名称、动量得分、目标权重（未缩放 1/3）、实际权重（目标波动 10% +
   杠杆 ≤1.0 缩放后）、信号日、成交日、上期权重、权重变化、新增/保留/剔除。
 - `report.md`：本期持仓、与上期对比、单边换手与 7bp 成本预估、数据口径、门禁尾行。
@@ -59,8 +77,8 @@ D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_signal.py
 - 门禁：「改坏必红」。持仓数改成 5 或排序方向反转都必须报错退出：
 
 ```powershell
-D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_signal.py --mutate top5
-D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_signal.py --mutate reverse
+python run_signal.py --mutate top5
+python run_signal.py --mutate reverse
 ```
 
 说明：信号导出按用户指定的主组合固定参数（K=3 / 12-1 / 等权 / 无过滤）；月度报告里的 OOS
@@ -136,7 +154,7 @@ OOS 只拼完整验证年，所以数据每月更新时 OOS 末端可能暂时�
 
 ```powershell
 # 推荐：钉住与上一期相同的数据截止，把「参数变化」和「新数据」分开
-D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_monthly.py --end 2026-11-04
+python run_monthly.py --end 2026-11-04
 ```
 
 **不是重跑就算了，输出必须回答「哪一项变了、变了多少」**：
@@ -168,7 +186,7 @@ D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_monthly.py --e
   - `status = first_run`：首跑，等待下一期同输入对比。
 - 环境与脚本指纹：`metrics.json.run.python/pandas/numpy`、`run.scripts`、`run.engine_sha256`。
 - 代码指纹 `code_sha256`：对参与计算的源码按**固定顺序**（`run_monthly.py` → `run_signal.py` →
-  `pipeline_core.py` → `monthly_report.py` → `engine.py` → `quant-xsec/xsec.py`）逐文件算 sha256，
+  `pipeline_core.py` → `monthly_report.py` → `engine.py` → `xsec.py`）逐文件算 sha256，
   拼成 `文件名:哈希` 行后再整体 sha256。顺序按「入口 → 整合/报告 → 引擎」写死，不依赖目录枚举，
   换机器不会漂移；路径用相对标签，移动目录也不变。回测写入 `metrics.json.run.code_sha256`
   与表 4，信号写入 `signals/*/metrics.json.run.code_sha256` 与报告头。
@@ -215,10 +233,11 @@ D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_monthly.py --e
 | `pipeline_core.py` | 引擎整合：数据硬校验、walk-forward、指标汇总、生效配置 |
 | `monthly_report.py` | 报告/图表：四张表、净值+回撤图、markdown |
 | `run_signal.py` | 当期信号：取月末信号、目标持仓表、与上期对比、换手/成本预估、门禁 |
-| `xsec.py`（`d:\Agent\quant-xsec`） | 横截面动量引擎（只读共用） |
+| `xsec.py`（仓内 vendored） | 横截面动量引擎，回测与信号共用 |
 
 行数说明：`monthly_report.py` **306 行**，超出 300 行约定。原因是表 2 的成本公式、表 4 的
 窗口闭合表注属于可复核证据；压缩会损失可追溯性。按约定只报数与损失，不为凑数字改格式。
+`xsec.py` **348 行**，为横截面引擎原样收录（vendored），未做压缩或改写；压缩会与主引擎产生分叉。
 
 历史研究产物（`out_oos/`、`out_risk/`、`out_turnover/`、`out_universe/`）与 `SUMMARY.md`
 保持原样，不被本流水线覆盖。

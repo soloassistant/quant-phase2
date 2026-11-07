@@ -1,5 +1,5 @@
 """
-下半场实验用横截面动量引擎（独立目录，不修改 quant / quant-xsec 产物）。
+下半场实验用横截面动量引擎（独立目录，不修改外部历史产物）。
 
 固定口径: t 收盘信号、t+1 开盘成交、月度调仓、单边 7bp、目标波动 10%、杠杆 ≤1.0。
 支持: 排名缓冲、最小持有期、换手门槛、切换成本惩罚、多/空、可扩展资产池。
@@ -364,14 +364,15 @@ def active_stats(strat_ret, bench_ret):
 
 
 def head_info():
-    p = Path("d:/Agent/.git/HEAD")
-    if not p.exists():
-        return "n/a（d:/Agent 无 .git, 未伪造）"
-    raw = p.read_text(encoding="utf-8").strip()
-    if raw.startswith("ref:"):
-        ref = Path("d:/Agent/.git") / raw.split(":", 1)[1].strip()
-        return ref.read_text(encoding="utf-8").strip() if ref.exists() else raw
-    return raw
+    try:
+        p = ROOT / ".git" / "HEAD"
+        raw = p.read_text(encoding="utf-8").strip()
+        if raw.startswith("ref:"):
+            ref = ROOT / ".git" / raw.split(":", 1)[1].strip()
+            return ref.read_text(encoding="utf-8").strip() if ref.exists() else raw
+        return raw
+    except Exception:
+        return "n/a"
 
 
 def meta_block(script_path=None):

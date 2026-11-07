@@ -25,7 +25,6 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent
 RUNS_DIR = ROOT / "runs"
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, r"d:\Agent\quant-xsec")
 import monthly_report  # noqa: E402
 import pipeline_core as pc  # noqa: E402
 import xsec  # noqa: E402
@@ -228,7 +227,7 @@ def main():
             "command": " ".join([sys.executable, str(Path(__file__)), *sys.argv[1:]]),
             "result_sha256": result_sha, "config_sha256": cfg_sha,
             "code_sha256": pc.code_sha256(), "scripts": scripts,
-            "engine_sha256": sha_file(r"d:\Agent\quant-xsec\xsec.py")[:16],
+            "engine_sha256": sha_file(ROOT / "xsec.py")[:16],
             "python": sys.version.split()[0], "pandas": pd.__version__, "numpy": np.__version__,
             **cfg_full["resolved"], "inputs_fingerprint": inp_fp}
 

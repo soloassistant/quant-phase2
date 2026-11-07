@@ -25,7 +25,7 @@ import engine  # noqa: E402
 
 OUT = ROOT / "out_risk"
 XSEC_NAV = ROOT / "out_oos" / "oos_nav.csv"
-TS_NAV = Path(r"d:\Agent\quant\out\walkforward_v2\oos_nav.csv")
+TS_NAV = ROOT / "out" / "walkforward_v2" / "oos_nav.csv"
 
 
 def pct(v, d=2):
@@ -54,6 +54,9 @@ def risk(nav):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    for p in (XSEC_NAV, TS_NAV):
+        if not p.exists():
+            raise SystemExit(f"[数据缺失] 缺少 {p}（历史研究输入，未随仓分发；先跑 oos_multi.py 或自备该文件）")
     print(f"xsec: {XSEC_NAV}", flush=True)
     xs = pd.read_csv(XSEC_NAV, index_col=0, parse_dates=True)
     x_nav = xs["oos_0m"].dropna()

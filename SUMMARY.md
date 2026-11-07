@@ -30,9 +30,9 @@
 
 - 目标：用**含已清盘代码**的点时成分池，重跑「加资产类别 / 幸存者偏差」；这是唯一可能证伪“池太窄 + 幸存者偏差”的改动。
 - 数据尝试（一次，有边界，未再访问 Yahoo / Stooq）：
-  - `d:\Agent` 全盘：只有 `quant/data` 的 10 只 ETF CSV；无 parquet / feather / db / sqlite / xlsx / xls。
-  - `c:\Users\geral\.trae-cn\attachments\...`：空目录。
-  - `C:\Users\geral\Downloads`：仅图片与空文件。
+  - `<workspace>` 全盘：只有 `quant/data` 的 10 只 ETF CSV；无 parquet / feather / db / sqlite / xlsx / xls。
+  - `<user>\.trae-cn\attachments\...`：空目录。
+  - `<user>\Downloads`：仅图片与空文件。
 - 结论：**不可得。** 到此为止，不换第三个源继续试，不编造数据 `[B]`。因此「加资产类别 / 幸存者偏差」保持 BLOCKED。
 
 ## 三、结构上限（写死，不再反复证明）
@@ -77,13 +77,13 @@
 
 | 报告 | 脚本 | sha256 前 16 位 | 运行命令 |
 |---|---|---|---|
-| [OOS 三项指标](computer://d:\Agent\quant-phase2\out_risk\report.md) | `risk_oos.py` | `25310c7113a262ea` | `D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\risk_oos.py` |
-| [方向 1 多起点](computer://d:\Agent\quant-phase2\out_oos\report.md) | `oos_multi.py` | `db684c6f25220ba8` | `D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\oos_multi.py` |
-| [方向 2 压换手](computer://d:\Agent\quant-phase2\out_turnover\report.md) | `turnover.py` | `afc4856229e0b6cf` | `D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\turnover.py` |
-| [方向 3 策略池](computer://d:\Agent\quant-phase2\out_universe\report.md) | `universe.py` | `1833498f5d6f84f7` | `D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\universe.py` |
+| `out_risk/report.md` 三项指标 | `risk_oos.py` | `25310c7113a262ea` | `python risk_oos.py` |
+| `out_oos/report.md` 方向 1 多起点 | `oos_multi.py` | `db684c6f25220ba8` | `python oos_multi.py` |
+| `out_turnover/report.md` 方向 2 压换手 | `turnover.py` | `afc4856229e0b6cf` | `python turnover.py` |
+| `out_universe/report.md` 方向 3 策略池 | `universe.py` | `1833498f5d6f84f7` | `python universe.py` |
 | 共用引擎 | `engine.py` | `556df6893acbe5e0` | — |
-| 第一版 WF 产物 | `quant/analysis/round3.py` | `273227cdcd5c247e` | 见 `quant/out/walkforward_v2/metrics.json` |
+| 第一版 WF 产物 | 外部历史产物（未随仓分发） | `273227cdcd5c247e` | — |
 
-- 环境：Python 3.12.16 / pandas 3.1.1 / numpy 2.5.4；`d:\Agent` 无 `.git`，`head` 为 n/a。
+- 环境：Python 3.12.16 / pandas 3.1.1 / numpy 2.5.4。
 - 没有把 7bp / purge 窗口等执行微调当成改进表功；被否掉的方向保留原始数字，便于以后直接翻查。
 - 以上为历史样本实测，不构成收益预测。
