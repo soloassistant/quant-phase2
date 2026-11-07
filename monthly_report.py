@@ -18,16 +18,20 @@ SERIES = [("strategy", "策略（OOS 拼接）"),
           ("bench_same_start", "基准① 同起点重建"),
           ("bench_continuous", "基准② 连续持有")]
 
+
 def _pct(v, d=2):
     return "n/a" if v is None or not math.isfinite(v) else f"{v*100:.{d}f}%"
 
+
 def _num(v, d=3):
     return "n/a" if v is None or not math.isfinite(v) else f"{v:.{d}f}"
+
 
 def _bp(v, d=0, signed=False):
     if v is None or not math.isfinite(v):
         return "n/a"
     return f"{v:+.{d}f}" if signed else f"{v:.{d}f}"
+
 
 def _md(headers, rows):
     lines = ["| " + " | ".join(headers) + " |",
@@ -36,8 +40,10 @@ def _md(headers, rows):
         lines.append("| " + " | ".join(str(x) for x in r) + " |")
     return "\n".join(lines)
 
+
 def _csv(path, headers, rows):
     pd.DataFrame(rows, columns=headers).to_csv(path, index=False, encoding="utf-8-sig")
+
 
 # ---------------------------------------------------------------- 四张表
 

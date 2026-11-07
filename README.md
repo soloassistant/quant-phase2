@@ -217,5 +217,8 @@ D:\Agent\quant\.venv\Scripts\python.exe D:\Agent\quant-phase2\run_monthly.py --e
 | `run_signal.py` | 当期信号：取月末信号、目标持仓表、与上期对比、换手/成本预估、门禁 |
 | `xsec.py`（`d:\Agent\quant-xsec`） | 横截面动量引擎（只读共用） |
 
+行数说明：`monthly_report.py` **306 行**，超出 300 行约定。原因是表 2 的成本公式、表 4 的
+窗口闭合表注属于可复核证据；压缩会损失可追溯性。按约定只报数与损失，不为凑数字改格式。
+
 历史研究产物（`out_oos/`、`out_risk/`、`out_turnover/`、`out_universe/`）与 `SUMMARY.md`
 保持原样，不被本流水线覆盖。
