@@ -9,3 +9,10 @@ out_universe/
 .venv/
 __pycache__/
 *.pyc
+
+# 执行层：订单计划、已执行状态、持仓快照；含凭据的环境文件
+state/
+.env
+*.env
+.env.*
+**/.alpaca/
