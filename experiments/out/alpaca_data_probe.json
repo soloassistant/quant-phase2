@@ -1,0 +1,487 @@
+{
+  "window": {
+    "start": "2026-09-01",
+    "end": "2026-11-04"
+  },
+  "bp_gate": 3.0,
+  "bars": {
+    "SPY": {
+      "iex": {
+        "status": 200,
+        "headers": {
+          "X-Ratelimit-Limit": "200",
+          "X-Ratelimit-Remaining": "199",
+          "X-Ratelimit-Reset": "1794135738"
+        },
+        "error": null,
+        "count": 46,
+        "first_bar": {
+          "c": 759.74,
+          "h": 762.78,
+          "l": 757.61,
+          "n": 22024,
+          "o": 760.11,
+          "t": "2026-09-01T04:00:00Z",
+          "v": 1487135,
+          "vw": 760.15
+        }
+      },
+      "sip": {
+        "status": 200,
+        "headers": {
+          "X-Ratelimit-Limit": "200",
+          "X-Ratelimit-Remaining": "199",
+          "X-Ratelimit-Reset": "1794135740"
+        },
+        "error": null,
+        "count": 46,
+        "first_bar": {
+          "c": 759.89,
+          "h": 762.78,
+          "l": 757.6,
+          "n": 573649,
+          "o": 760.12,
+          "t": "2026-09-01T04:00:00Z",
+          "v": 41180135,
+          "vw": 760.15
+        }
+      }
+    }
+  },
+  "snapshots": {
+    "iex": {
+      "status": 200,
+      "headers": {
+        "X-Ratelimit-Limit": "200",
+        "X-Ratelimit-Remaining": "199",
+        "X-Ratelimit-Reset": "1794135742"
+      },
+      "error": null,
+      "sample": {
+        "SPY": {
+          "latestTrade": {
+            "c": [
+              " ",
+              "T"
+            ],
+            "i": 52984065179494,
+            "p": 736.07,
+            "s": 70,
+            "t": "2026-11-06T21:56:23.395471128Z",
+            "x": "V",
+            "z": "B"
+          },
+          "dailyBar": {
+            "c": 735.4,
+            "h": 742.11,
+            "l": 734.605,
+            "n": 33217,
+            "o": 734.85,
+            "t": "2026-11-06T05:00:00Z",
+            "v": 1941930,
+            "vw": 738.15141
+          }
+        },
+        "QQQ": {
+          "latestTrade": {
+            "c": [
+              "@",
+              "T"
+            ],
+            "i": 16636,
+            "p": 656.87,
+            "s": 40,
+            "t": "2026-11-06T21:59:06.081558399Z",
+            "x": "V",
+            "z": "C"
+          },
+          "dailyBar": {
+            "c": 656.31,
+            "h": 664.28,
+            "l": 654.015,
+            "n": 16637,
+            "o": 658.42,
+            "t": "2026-11-06T05:00:00Z",
+            "v": 1016380,
+            "vw": 658.750724
+          }
+        }
+      }
+    },
+    "sip": {
+      "status": 403,
+      "headers": {},
+      "error": "{\"message\":\"subscription does not permit querying recent SIP data\"}\n",
+      "sample": null
+    }
+  },
+  "pairs": {
+    "SPY": {
+      "status": "ok",
+      "local_rows": 46,
+      "iex_rows": 46,
+      "sip_rows": 46,
+      "sip_vs_yf": {
+        "pair": "yfinance vs sip",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.0008126086956468972,
+        "max_abs_diff": 0.004821999999990112,
+        "median_bp": 0.0002982084190694678,
+        "mean_signed_bp": -0.005911730028067938,
+        "volume_ratio_median": 1.0018851754602,
+        "top3": [
+          {
+            "date": "2026-09-03",
+            "yfinance": 771.2548,
+            "sip": 771.25
+          },
+          {
+            "date": "2026-09-14",
+            "yfinance": 758.9952,
+            "sip": 759.0
+          },
+          {
+            "date": "2026-09-02",
+            "yfinance": 763.2646,
+            "sip": 763.26
+          }
+        ]
+      },
+      "iex_vs_yf": {
+        "pair": "yfinance vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.0727596086956574,
+        "max_abs_diff": 0.290004999999951,
+        "median_bp": 0.7732420567974074,
+        "mean_signed_bp": -0.03555012336448784,
+        "volume_ratio_median": 0.030748361646341704,
+        "top3": [
+          {
+            "date": "2026-09-30",
+            "yfinance": 762.63,
+            "iex": 762.34
+          },
+          {
+            "date": "2026-09-29",
+            "yfinance": 764.2,
+            "iex": 764.38
+          },
+          {
+            "date": "2026-09-01",
+            "yfinance": 759.8931,
+            "iex": 759.74
+          }
+        ]
+      },
+      "iex_vs_sip": {
+        "pair": "sip vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.0728260869565173,
+        "max_abs_diff": 0.2899999999999636,
+        "median_bp": 0.7732294341949997,
+        "mean_signed_bp": -0.029638078022220033,
+        "volume_ratio_median": 0.030730618035072176,
+        "top3": [
+          {
+            "date": "2026-09-30",
+            "sip": 762.63,
+            "iex": 762.34
+          },
+          {
+            "date": "2026-09-29",
+            "sip": 764.2,
+            "iex": 764.38
+          },
+          {
+            "date": "2026-09-01",
+            "sip": 759.89,
+            "iex": 759.74
+          }
+        ]
+      }
+    },
+    "QQQ": {
+      "status": "ok",
+      "local_rows": 46,
+      "iex_rows": 46,
+      "sip_rows": 46,
+      "sip_vs_yf": {
+        "pair": "yfinance vs sip",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.0007989999999920102,
+        "max_abs_diff": 0.004392000000052576,
+        "median_bp": 0.000310327454289272,
+        "mean_signed_bp": -0.003656259944034121,
+        "volume_ratio_median": 1.0058099335714883,
+        "top3": [
+          {
+            "date": "2026-09-09",
+            "yfinance": 715.5644,
+            "sip": 715.56
+          },
+          {
+            "date": "2026-09-11",
+            "yfinance": 714.1359,
+            "sip": 714.14
+          },
+          {
+            "date": "2026-09-17",
+            "yfinance": 716.1737,
+            "sip": 716.17
+          }
+        ]
+      },
+      "iex_vs_yf": {
+        "pair": "yfinance vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.07339891304348573,
+        "max_abs_diff": 0.42000499999994645,
+        "median_bp": 0.6925602717572366,
+        "mean_signed_bp": -0.21363566357913555,
+        "volume_ratio_median": 0.015024543859664164,
+        "top3": [
+          {
+            "date": "2026-10-20",
+            "yfinance": 717.63,
+            "iex": 717.21
+          },
+          {
+            "date": "2026-11-04",
+            "yfinance": 691.95,
+            "iex": 691.68
+          },
+          {
+            "date": "2026-09-30",
+            "yfinance": 739.77,
+            "iex": 739.51
+          }
+        ]
+      },
+      "iex_vs_sip": {
+        "pair": "sip vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.07369565217391522,
+        "max_abs_diff": 0.4199999999999591,
+        "median_bp": 0.6927474104695408,
+        "mean_signed_bp": -0.2099790868375712,
+        "volume_ratio_median": 0.014947516831918212,
+        "top3": [
+          {
+            "date": "2026-10-20",
+            "sip": 717.63,
+            "iex": 717.21
+          },
+          {
+            "date": "2026-11-04",
+            "sip": 691.95,
+            "iex": 691.68
+          },
+          {
+            "date": "2026-09-30",
+            "sip": 739.77,
+            "iex": 739.51
+          }
+        ]
+      }
+    },
+    "EEM": {
+      "status": "ok",
+      "local_rows": 46,
+      "iex_rows": 46,
+      "sip_rows": 46,
+      "sip_vs_yf": {
+        "pair": "yfinance vs sip",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 1.6956521721033864e-06,
+        "max_abs_diff": 4.0000000041118255e-06,
+        "median_bp": 0.0002930614573237733,
+        "mean_signed_bp": 1.0282854278210112e-06,
+        "volume_ratio_median": 1.0000175579731776,
+        "top3": [
+          {
+            "date": "2026-09-11",
+            "yfinance": 67.84,
+            "sip": 67.84
+          },
+          {
+            "date": "2026-09-17",
+            "yfinance": 66.91,
+            "sip": 66.91
+          },
+          {
+            "date": "2026-09-04",
+            "yfinance": 68.7,
+            "sip": 68.7
+          }
+        ]
+      },
+      "iex_vs_yf": {
+        "pair": "yfinance vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.011304434782608544,
+        "max_abs_diff": 0.020003000000002658,
+        "median_bp": 1.5767935765875762,
+        "mean_signed_bp": 0.5678863217365003,
+        "volume_ratio_median": 0.06187545196666627,
+        "top3": [
+          {
+            "date": "2026-09-04",
+            "yfinance": 68.7,
+            "iex": 68.72
+          },
+          {
+            "date": "2026-10-07",
+            "yfinance": 67.37,
+            "iex": 67.35
+          },
+          {
+            "date": "2026-10-13",
+            "yfinance": 65.74,
+            "iex": 65.76
+          }
+        ]
+      },
+      "iex_vs_sip": {
+        "pair": "sip vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.011304347826087024,
+        "max_abs_diff": 0.020000000000010232,
+        "median_bp": 1.5767935765875762,
+        "mean_signed_bp": 0.5678852940724837,
+        "volume_ratio_median": 0.061874549373255455,
+        "top3": [
+          {
+            "date": "2026-09-30",
+            "sip": 66.79,
+            "iex": 66.77
+          },
+          {
+            "date": "2026-10-07",
+            "sip": 67.37,
+            "iex": 67.35
+          },
+          {
+            "date": "2026-10-13",
+            "sip": 65.74,
+            "iex": 65.76
+          }
+        ]
+      }
+    },
+    "DBC": {
+      "status": "ok",
+      "local_rows": 46,
+      "iex_rows": 46,
+      "sip_rows": 46,
+      "sip_vs_yf": {
+        "pair": "yfinance vs sip",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 8.478260863606247e-07,
+        "max_abs_diff": 2.0000000020559128e-06,
+        "median_bp": 0.0003002552234621092,
+        "mean_signed_bp": 6.5225926109522074e-06,
+        "volume_ratio_median": 1.000228310712857,
+        "top3": [
+          {
+            "date": "2026-09-08",
+            "yfinance": 32.4,
+            "sip": 32.4
+          },
+          {
+            "date": "2026-09-09",
+            "yfinance": 32.85,
+            "sip": 32.85
+          },
+          {
+            "date": "2026-09-14",
+            "yfinance": 33.15,
+            "sip": 33.15
+          }
+        ]
+      },
+      "iex_vs_yf": {
+        "pair": "yfinance vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.012935065217391262,
+        "max_abs_diff": 0.07000000000000028,
+        "median_bp": 2.9972658539328956,
+        "mean_signed_bp": -2.073539107029184,
+        "volume_ratio_median": 0.042894403381934176,
+        "top3": [
+          {
+            "date": "2026-09-18",
+            "yfinance": 32.93,
+            "iex": 32.86
+          },
+          {
+            "date": "2026-09-14",
+            "yfinance": 33.15,
+            "iex": 33.1
+          },
+          {
+            "date": "2026-10-06",
+            "yfinance": 32.69,
+            "iex": 32.64
+          }
+        ]
+      },
+      "iex_vs_sip": {
+        "pair": "sip vs iex",
+        "overlap_days": 46,
+        "missing_in_b": [],
+        "extra_in_b": [],
+        "mean_abs_diff": 0.01293478260869555,
+        "max_abs_diff": 0.07000000000000028,
+        "median_bp": 2.9972658539328956,
+        "mean_signed_bp": -2.0735456524105222,
+        "volume_ratio_median": 0.04294673472588882,
+        "top3": [
+          {
+            "date": "2026-09-18",
+            "sip": 32.93,
+            "iex": 32.86
+          },
+          {
+            "date": "2026-09-14",
+            "sip": 33.15,
+            "iex": 33.1
+          },
+          {
+            "date": "2026-10-06",
+            "sip": 32.69,
+            "iex": 32.64
+          }
+        ]
+      }
+    }
+  },
+  "verdict": "SIP 与 yfinance 差异中位数 < 3bp 且无系统性偏移 → 可作交叉校验源；默认口径仍用现有数据，不切换。IEX 为单一交易所，不可作主口径。",
+  "iex_bias_bp": {
+    "SPY": -0.03555012336448784,
+    "QQQ": -0.21363566357913555,
+    "EEM": 0.5678863217365003,
+    "DBC": -2.073539107029184
+  }
+}
