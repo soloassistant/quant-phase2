@@ -159,8 +159,23 @@ def build_plan(sig_dir, snap_path, band):
                       "action": action, "notional": notional, "est_qty": qty,
                       "price": price, "name": next((r["name"] for r in rows if r["symbol"] == sym), "")})
 
+    note = ""
+    if buys > cash:
+        scale = max(cash, 0.0) / buys
+        remaining, buys = max(cash, 0.0), 0.0
+        for row in lines:
+            if row["action"] == "BUY":
+                amt = round(min(remaining, row["notional"] * scale), 2)
+                row["notional"] = amt
+                remaining = round(remaining - amt, 2)
+                row["est_qty"] = round(amt / row["price"], 4) if row["price"] > 0 else 0.0
+                buys += amt
+        note = f"现金不足，按 1x 缩量至 {scale:.4f}（不融资）"
+
     cash_after = round(cash - buys + sells, 2)
-    plan = {"signal_dir": Path(sig_dir).as_posix(), "signal_sha256": signal_sha,
+    sig_path = Path(sig_dir).resolve()
+    sig_ref = sig_path.relative_to(ROOT).as_posix() if ROOT in sig_path.parents else sig_path.as_posix()
+    plan = {"signal_dir": sig_ref, "signal_sha256": signal_sha,
             "snapshot_sha256": sha256_file(snap_path),
             "band": band, "equity": round(equity, 2), "cash": round(cash, 2),
             "leverage": 1.0,
@@ -168,6 +183,8 @@ def build_plan(sig_dir, snap_path, band):
             "cash_after": cash_after,
             "cash_after_pct": round(cash_after / equity, 8),
             "target_cash_pct": round(1.0 - sum(float(r["target_weight"]) for r in rows), 8)}
+    if note:
+        plan["cash_guard"] = note
     plan["plan_sha256"] = sha256_text(canonical(plan))
     return plan, holdings_path
 
@@ -189,7 +206,10 @@ def write_plan(plan, sig_dir):
             f"阈值 {plan['band']:.2%} | equity {plan['equity']:,.2f} | 现金 {plan['cash']:,.2f}")
     tail = (f"\n买单合计 {plan['buy_notional']:,.2f} / 卖单合计 {plan['sell_notional']:,.2f} / "
             f"执行后现金 {plan['cash_after']:,.2f}（{plan['cash_after_pct']:.2%}，"
-            f"目标现金 {plan['target_cash_pct']:.2%}）\n计划 sha256 {plan['plan_sha256']}")
+            f"目标现金 {plan['target_cash_pct']:.2%}）")
+    if plan.get("cash_guard"):
+        tail += f"\n现金约束 {plan['cash_guard']}"
+    tail += f"\n计划 sha256 {plan['plan_sha256']}"
     text = head + "\n" + "\n".join(table) + "\n" + tail
     (out / "plan.md").write_text(text + "\n", encoding="utf-8")
     print(text)
