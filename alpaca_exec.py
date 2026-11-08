@@ -216,7 +216,7 @@ def write_plan(plan, sig_dir):
     return out
 
 
-def execute(plan, base_url, sig_dir):
+def execute(plan, base_url, sig_dir, queue_for_open=False):
     host = urlparse(base_url).hostname
     if host != PAPER_HOST:
         raise SystemExit(f"[拒绝执行] endpoint 主机是 {host}，只允许 {PAPER_HOST}（纸面账户）")
@@ -227,32 +227,39 @@ def execute(plan, base_url, sig_dir):
         return 0
     clock = api("GET", "/v2/clock", base=base_url)
     if not clock.get("is_open"):
-        pending = ROOT / "state" / "pending" / f"{plan['signal_sha256']}.json"
-        pending.parent.mkdir(parents=True, exist_ok=True)
-        pending.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"未开盘（下次开盘 {clock.get('next_open')}），计划已保存未提交: {pending}")
-        return 3
+        if not queue_for_open:
+            pending = ROOT / "state" / "pending" / f"{plan['signal_sha256']}.json"
+            pending.parent.mkdir(parents=True, exist_ok=True)
+            pending.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(f"未开盘（下次开盘 {clock.get('next_open')}），计划已保存未提交: {pending}")
+            return 3
+        print(f"未开盘，按 --queue-for-open 排队至开盘（{clock.get('next_open')}；"
+              f"time_in_force=day, extended_hours=false）")
 
     done, failed = [], []
     for row in plan["orders"]:
         if row["action"] == "HOLD" or row["notional"] == 0:
             continue
         body = {"symbol": row["symbol"], "side": row["action"].lower(),
-                "type": "market", "time_in_force": "day"}
+                "type": "market", "time_in_force": "day", "extended_hours": False}
         if row["action"] == "BUY":
             body["notional"] = f"{row['notional']:.2f}"
         else:
             body["qty"] = f"{row['est_qty']:.4f}"
         try:
             order = api("POST", "/v2/orders", base=base_url, body=body)
-            done.append({"symbol": row["symbol"], "side": body["side"],
-                         "notional": row["notional"], "id": order["id"],
-                         "status": order["status"]})
-            print(f"已提交 {row['symbol']} {body['side']} {row['notional']:.2f} id={order['id']}")
+            back = api("GET", f"/v2/orders/{order['id']}", base=base_url)
+            if str(back.get("notional")) != body.get("notional"):
+                raise SystemExit(f"[回读不一致] notional={back.get('notional')}，提交 {body.get('notional')}")
+            raw = {k: back.get(k) for k in ("id", "client_order_id", "symbol", "notional", "qty",
+                                            "side", "type", "time_in_force", "status", "submitted_at")}
+            done.append(raw)
+            print(f"已提交 {json.dumps(raw, ensure_ascii=False)}")
         except SystemExit as exc:
             failed.append({"symbol": row["symbol"], "side": body["side"],
                            "notional": row["notional"], "error": str(exc)})
-            print(f"[下单失败] {row['symbol']}\n{exc}")
+            print(f"[下单失败] {row['symbol']}\n{exc}；停止后续提交")
+            break
     state.parent.mkdir(parents=True, exist_ok=True)
     state.write_text(json.dumps({"signal_sha256": plan["signal_sha256"],
                                  "plan_sha256": plan["plan_sha256"],
@@ -273,6 +280,7 @@ def main():
     s1.add_argument("--snapshot", required=True)
     s1.add_argument("--band", type=float, default=0.01)
     s1.add_argument("--execute", action="store_true")
+    s1.add_argument("--queue-for-open", action="store_true")
     s1.add_argument("--base-url", default=None)
     args = ap.parse_args()
 
@@ -285,7 +293,7 @@ def main():
         print("\n[dry-run] 未提交任何订单；确需执行请加 --execute")
         return 0
     base = args.base_url or os.environ.get("APCA_API_BASE_URL", "https://" + PAPER_HOST)
-    return execute(plan, base, args.signal)
+    return execute(plan, base, args.signal, args.queue_for_open)
 
 
 if __name__ == "__main__":
