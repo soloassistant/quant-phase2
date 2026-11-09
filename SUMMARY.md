@@ -75,15 +75,23 @@
 
 ## 六、复现与指纹
 
+下表指纹为 **2026-11-09 对仓内 main 当前版本逐文件实测**的 sha256 前 16 位，
+口径与脚本 `meta_block()` 一致（`hashlib.sha256(read_bytes())`）。
+
 | 报告 | 脚本 | sha256 前 16 位 | 运行命令 |
 |---|---|---|---|
-| `out_risk/report.md` 三项指标 | `risk_oos.py` | `25310c7113a262ea` | `python risk_oos.py` |
-| `out_oos/report.md` 方向 1 多起点 | `oos_multi.py` | `db684c6f25220ba8` | `python oos_multi.py` |
-| `out_turnover/report.md` 方向 2 压换手 | `turnover.py` | `afc4856229e0b6cf` | `python turnover.py` |
-| `out_universe/report.md` 方向 3 策略池 | `universe.py` | `1833498f5d6f84f7` | `python universe.py` |
-| 共用引擎 | `engine.py` | `556df6893acbe5e0` | — |
+| `out_risk/report.md` 三项指标 | `risk_oos.py` | `52bd3513c422641f` | `python risk_oos.py` |
+| `out_oos/report.md` 方向 1 多起点 | `oos_multi.py` | `0e1bc03502c8d72f` | `python oos_multi.py` |
+| `out_turnover/report.md` 方向 2 压换手 | `turnover.py` | `21eb73a85739cfaa` | `python turnover.py` |
+| `out_universe/report.md` 方向 3 策略池 | `universe.py` | `13ab83b482611341` | `python universe.py` |
+| 共用引擎 | `engine.py` | `306516e99b24f034` | — |
 | 第一版 WF 产物 | 外部历史产物（未随仓分发） | `273227cdcd5c247e` | — |
 
-- 环境：Python 3.12.16 / pandas 3.1.1 / numpy 2.5.4。
+旧版指纹 `25310c71…` / `db684c6f…` / `afc48562…` / `1833498f…` / `556df689…`
+对应 `41ea834a`~`7c0b9e16` 的早期版本；`7c0b9e16` / `3397b9f1` 只做了路径去本地化
+（绝对路径改仓内相对路径、运行命令改写），**算法逻辑未变**，结论数字不受影响。
+上表 `out_*` 报告产物同样未随仓分发，运行前置条件见 README「复现前置条件」。
+
+- 环境：Python 3.12.16 / pandas 3.1.1 / numpy 2.5.4；依赖已写入 `requirements.txt`。
 - 没有把 7bp / purge 窗口等执行微调当成改进表功；被否掉的方向保留原始数字，便于以后直接翻查。
 - 以上为历史样本实测，不构成收益预测。

@@ -1,0 +1,10 @@
+# 月度复跑 / 信号导出 / 实验脚本的运行依赖。
+# 历史结论所用环境（SUMMARY.md）：Python 3.12.16 / pandas 3.1.1 / numpy 2.5.4。
+# README 要求「同一输入 + 同一环境」下 result_sha256 逐位相同，
+# 因此锁定会影响浮点与排序行为的两个库。
+# 代码使用 resample("ME")、pct_change(fill_method=None) 等 pandas 2.2+ 行为，
+# 降版本会在运行期直接报错，不要降到 pandas 2.1 及以下。
+pandas==3.1.1
+numpy==2.5.4
+# 仅用于出图，不影响任何数值与指纹；历史环境未记录其版本，故只给下限。
+matplotlib>=3.8

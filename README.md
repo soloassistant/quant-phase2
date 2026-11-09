@@ -21,6 +21,22 @@ df.reset_index().to_csv("data/SPY.csv", index=False)
 - 许可：**Yahoo Finance 条款未授予数据再分发权**，因此本仓不提供任何 CSV/Parquet，请遵守其条款自行获取。
 - 数据缺失时流水线会硬失败并指出缺哪个文件/区间，不做插值或前值填充。
 
+## 复现前置条件
+
+干净 clone 后按以下顺序准备，否则命令会硬失败（这是有意的，不做静默降级）：
+
+1. 装依赖：`pip install -r requirements.txt`。版本锁定见文件内注释；
+   README 要求「同一输入 + 同一环境」下 `result_sha256` 逐位相同，依赖漂移会破坏这一点。
+2. 备数据：按上文「数据声明」自行获取 10 只 ETF 的日频 CSV 放入 `data/`。
+   `data/`、`runs/`、`signals/` 与历史 `out_*` 产物都不纳入版本控制。
+3. **先跑一次 `python run_monthly.py`**：`experiments/opt_20261108.py` 的 `baseline`
+   变体会校核 `runs/` 里最近一次 `metrics.json`，没有就报 `[基线缺失]` 退出；
+   `experiments/out/baseline.json` 等实验产物也依赖这条基线。
+4. 历史研究脚本 `risk_oos.py` / `oos_multi.py` / `turnover.py` / `universe.py`
+   另需未随仓分发的历史产物（例如 `out/walkforward_v2/oos_nav.csv`），缺文件时
+   直接退出并打印路径。这四个脚本不在月度流水线内，不影响
+   `run_monthly.py` 与 `run_signal.py`。
+
 ## 一条命令
 
 ```powershell
@@ -87,8 +103,12 @@ python run_signal.py --mutate reverse
 
 ## 口径锁死
 
-以下六项写在 `pipeline_core.py` / `xsec.py`，运行前会断言，任何改动都会改变
-`config_sha256` 并出现在 `metrics.json.effective_config` 与表 4：
+以下六项写在 `pipeline_core.py` / `xsec.py`。`run_monthly.py` 与 `run_signal.py`
+启动时调用 `pipeline_core.assert_locked()`，对可读的引擎常量做 fail-fast
+（单边成本、目标波动、跳过天数、年化天数、波动窗口、默认成交模式）；
+其余项属于执行流程本身，由 `code_sha256` 指纹覆盖，改动会在
+`metrics.json.run.code_sha256` 与表 4 中可见。参数改动另会改变
+`config_sha256`，并出现在 `metrics.json.effective_config` 与表 4：
 
 - t 日收盘信号
 - t+1 开盘成交
@@ -180,7 +200,8 @@ python run_monthly.py --end 2026-11-04
 **总纲：本仓不因「OOS 指标变好」就采纳参数，先看改善是否集中在少数年份、是否随参数单调、
 机制是否先验成立。** 以下为 2026-11-08 一轮实验的完整记录，全部只看 OOS
 （2016-02-29→2026-02-27），锁死口径（7bp / 目标波动 10% / 杠杆 ≤1.0）未动。
-复跑：`python experiments/opt_20261108.py --variants baseline band10 band20 band30 buffer1 invvol`，
+复跑（前置条件见「复现前置条件」，`baseline` 变体要求本地已有 `runs/` 基线）：
+`python experiments/opt_20261108.py --variants baseline band10 band20 band30 buffer1 invvol`，
 明细在 `experiments/out/*.json`。
 
 | 候选 | OOS Sharpe | Calmar | 年换手 | 年化成本 | 否决理由 |

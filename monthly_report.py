@@ -278,7 +278,7 @@ def write_all(run_dir, nav_df, perf, turn, gaps, files, cfg_rows, meta,
     L.append(f"## 表 4 本次运行输入清单 {MEASURED}\n")
     L.append(_md(h4, r4))
     L.append("\nsha256 为原始 CSV 字节指纹；区间取自文件首末行。参数为本次运行实际生效值，"
-             "非估计值；任何改动都会改变 `config_sha256` 并在 metrics.json 中可见。\n")
+             "非估计值；参数改动改变 `config_sha256`，代码口径改动由 `code_sha256` 记录。\n")
     next_end = (pd.Timestamp(meta["oos_end"]) + pd.DateOffset(years=1)).date()
     L.append(f"**表注（为什么数据更新到 {meta['data_end']}，OOS 末端仍停在 {meta['oos_end']}）：** "
              f"OOS 只拼接**完整**的 1 年验证窗，不拼接未闭合窗口。本次数据截止 {meta['data_end']}，"

@@ -5,6 +5,7 @@
 """
 
 import hashlib
+import inspect
 import sys
 from pathlib import Path
 
@@ -211,6 +212,31 @@ def gap_rows(perf):
                      "bench_mdd": b["max_drawdown"],
                      "mdd_diff_pp": (s["max_drawdown"] - b["max_drawdown"]) * 100})
     return rows
+
+
+# ---------------------------------------------------------------- 锁死口径（入口校验）
+
+def assert_locked():
+    """回测与信号共用：锁死口径被改动时直接退出，不允许带着漂移出报告。
+
+    只校验能从引擎常量/函数签名读取的项。"t 收盘信号 / t+1 开盘 / 月度 /
+    杠杆 ≤1.0 / 现金 0 收益"是执行流程本身，由 code_sha256 覆盖，
+    不在这里重复实现一遍（重复实现反而会两边一起错）。
+    刻意不改 effective_config 的 locked 字典：那会改变 config_sha256，
+    进而让历史 result_sha256 失去可比性。
+    """
+    for name, got, want in (
+        ("xsec.COST_RATE", xsec.COST_RATE, 0.0007),
+        ("xsec.TARGET_VOL", xsec.TARGET_VOL, 0.10),
+        ("xsec.SKIP_DAYS", xsec.SKIP_DAYS, 21),
+        ("xsec.TRADING_DAYS", xsec.TRADING_DAYS, 252),
+        ("xsec.VOL_DAYS", xsec.VOL_DAYS, 20),
+    ):
+        if got != want:
+            raise SystemExit(f"[口径漂移] {name}={got}，锁死值 {want}，请先确认再跑")
+    mode = inspect.signature(xsec.run).parameters["exec_mode"].default
+    if mode != "next_open":
+        raise SystemExit(f"[口径漂移] xsec.run 默认 exec_mode={mode}，锁死值 next_open")
 
 
 # ---------------------------------------------------------------- 生效配置

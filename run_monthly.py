@@ -162,10 +162,7 @@ def main():
     ap.add_argument("--end", help="数据截止 YYYY-MM-DD（用于与上一期同输入对比；默认用最新行）")
     args = ap.parse_args()
 
-    for name, got, want in (("xsec.COST_RATE", xsec.COST_RATE, 0.0007),
-                            ("xsec.TARGET_VOL", xsec.TARGET_VOL, 0.10)):
-        if abs(got - want) > 1e-12:
-            raise SystemExit(f"[口径漂移] {name}={got}，锁死值 {want}，请先确认再跑")
+    pc.assert_locked()  # 改坏锁死口径直接红，校验点收口在 pipeline_core
 
     data = pc.load_data()
     _, close_df = xsec.build_panels(data)
