@@ -98,6 +98,7 @@ def main():
     if args.mutate == "top5":
         raise SystemExit(f"[门禁失败] 持仓数被改成 K=5，锁定 K={K}；拒绝出信号")
 
+    pc.assert_locked()  # 与回测同一处收口，避免信号侧口径漂移
     data = pc.load_data()
     _, close_df = xsec.build_panels(data)
     base_start = xsec.common_start(close_df)
