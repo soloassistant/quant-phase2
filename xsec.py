@@ -21,6 +21,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import guards
+
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 OUT_DIR = ROOT / "out"
@@ -198,8 +200,10 @@ def run(data, k: int = 3, mom_days: int = 252, use_filter: bool = False,
 
         if pending is not None:
             sig_date, target = pending
-            op = open_df.loc[d]
-            op = op.where(op.notna() & (op > 0), close_ff.loc[d])
+            # 缺开盘价直接失败：原先这里会退回当日收盘价，等于开盘时已知道收盘，
+            # 属于静默前视（评审 P3）。宁可中断，也不用假成交价。
+            op_checked = guards.check_open_prices(d.date(), open_df.loc[d].to_dict())
+            op = pd.Series(op_checked).reindex(close_df.columns)
             execute(target, d, op, "open", sig_date)
             pending = None
 
@@ -277,7 +281,6 @@ def run_benchmark(data, start, end) -> pd.Series:
     open_df, close_df = build_panels(data)
     cal = close_df.loc[(close_df.index >= pd.Timestamp(start)) &
                        (close_df.index <= pd.Timestamp(end))].index
-    op = open_df.loc[cal].ffill()
     px = close_df.loc[cal].ffill()
     exec_i = 1 if len(cal) > 1 else 0
     exec_date = cal[exec_i]
@@ -286,7 +289,9 @@ def run_benchmark(data, start, end) -> pd.Series:
     target = pv0 / n
     cost = target * n * COST_RATE
     cash = pv0 - target * n - cost
-    shares = pd.Series({t: target / op.loc[exec_date, t] for t in UNIVERSE})
+    # 基准的建仓价同样不许用 ffill 顶替：缺当天开盘价就报错
+    entry = guards.check_open_prices(exec_date.date(), open_df.loc[exec_date].to_dict())
+    shares = pd.Series({t: target / entry[t] for t in UNIVERSE})
     vals = []
     for i, d in enumerate(cal):
         vals.append(pv0 if i < exec_i else cash + float((shares * px.loc[d]).sum()))

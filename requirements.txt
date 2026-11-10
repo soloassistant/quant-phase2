@@ -8,3 +8,8 @@ pandas==3.1.1
 numpy==2.5.4
 # 仅用于出图，不影响任何数值与指纹；历史环境未记录其版本，故只给下限。
 matplotlib>=3.8
+# 仅用于按 README「数据声明」自行取数（yfinance），不参与任何计算。
+# 不锁死版本：Yahoo 接口变动频繁，锁死只会让新环境装不上。
+yfinance>=0.2
+# 测试不需要任何第三方依赖（python -m unittest discover -s tests），
+# 因此 pytest 不在依赖里 —— CI 与本地都用 stdlib。如偏好 pytest 可自行安装。

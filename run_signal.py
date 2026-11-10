@@ -5,6 +5,10 @@
 只复用回测同一套引擎/参数（xsec 的 12-1 横截面动量，K=3、等权、目标波动 10%、杠杆 ≤1.0），
 不另写排序或权重逻辑；本文件只做「取信号 + 排版 + 校验」。
 
+⚠️ 参数口径（评审 P1）：默认参数**不是** README 里 1.02 夏普那套（那套每年重新选参）。
+要用选参结果出信号，传 `--params <json>`；无论哪条路径，参数与 sha256 都会写进
+metrics.json 与 report.md，避免「用 A 的成绩证明 B 的持仓」。
+
 产物: signals/<YYYYMMDD_HHMMSS>/holdings.csv, report.md, metrics.json
 数据缺失/缺月/缺行情 -> 直接失败并指出文件与区间，禁止插值或前值填充。
 """
@@ -23,13 +27,16 @@ SIGNALS_DIR = ROOT / "signals"
 sys.path.insert(0, str(ROOT))
 import pipeline_core as pc  # noqa: E402
 import xsec  # noqa: E402
+import live_params  # noqa: E402
+from signal_timing import latest_signal, month_end_indices  # noqa: E402
 
 CHINA_TZ = timezone(timedelta(hours=8))
-K = 3
-MOM_DAYS = 252
-USE_FILTER = False
-WEIGHT = "equal"
-TARGET_VOL = 0.10
+# 默认值 = DEFAULT_PARAMS；main() 里可被 --params 覆盖（覆盖后会写进 metrics.json）
+K = live_params.DEFAULT_PARAMS["k"]
+MOM_DAYS = live_params.DEFAULT_PARAMS["mom_days"]
+USE_FILTER = live_params.DEFAULT_PARAMS["use_filter"]
+WEIGHT = live_params.DEFAULT_PARAMS["weight"]
+TARGET_VOL = live_params.DEFAULT_PARAMS["target_vol"]
 COST_BP = 7.0
 
 NAMES = {"SPY": "标普500 ETF", "QQQ": "纳指100 ETF", "IEF": "7-10年美债 ETF",
@@ -48,26 +55,6 @@ def canonical(obj):
 
 def sha_file(p):
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
-
-
-def month_end_indices(cal):
-    """已观察到的月末（有下一交易日且月份切换）。"""
-    return [i for i in range(len(cal) - 1) if cal[i].month != cal[i + 1].month]
-
-
-def latest_signal(cal):
-    """返回 (信号下标, 是否有次日成交数据)。
-
-    数据末端若正好是月末，按最后一行出信号，成交日待次月数据；
-    否则取最近一个「有下一交易日」的月末。
-    """
-    last = cal[-1]
-    if (last + pd.offsets.BDay(1)).month != last.month:
-        return len(cal) - 1, False
-    me = month_end_indices(cal)
-    if not me:
-        raise SystemExit(f"[区间不足] {cal[0].date()}→{last.date()} 内没有可识别的月末")
-    return me[-1], True
 
 
 def ranking(close_df, ret_f, i, mutate=None):
@@ -90,10 +77,30 @@ def _pct(v, d=2):
 
 
 def main():
+    global K, MOM_DAYS, USE_FILTER, WEIGHT, TARGET_VOL
     ap = argparse.ArgumentParser(description="导出当期目标持仓（不输出回测指标）")
     ap.add_argument("--end", help="数据截止 YYYY-MM-DD（默认用最新行）")
+    ap.add_argument(
+        "--params",
+        help="参数文件（JSON，字段同 live_params.DEFAULT_PARAMS）。"
+             "想用选参结果出信号就指到那份 JSON；不传则用默认参数，"
+             "并在报告里注明「该组参数没有对应的样本外成绩」。",
+    )
     ap.add_argument("--mutate", choices=("top5", "reverse"), help=argparse.SUPPRESS)
     args = ap.parse_args()
+
+    try:
+        params = live_params.load_params(args.params)
+    except live_params.ParamsError as e:
+        raise SystemExit(f"[参数错误] {e}")
+    K = params["k"]
+    MOM_DAYS = params["mom_days"]
+    USE_FILTER = params["use_filter"]
+    WEIGHT = params["weight"]
+    TARGET_VOL = params["target_vol"]
+    params_sha = live_params.params_sha256(params)
+    # 参数来源决定「能不能引用 1.02 夏普」：默认参数没有对应报告，就别拿它背书
+    oos_ref = live_params.OOS_REFERENCE["default_params" if args.params is None else "walk_forward"]
 
     if args.mutate == "top5":
         raise SystemExit(f"[门禁失败] 持仓数被改成 K=5，锁定 K={K}；拒绝出信号")
@@ -187,6 +194,12 @@ def main():
     payload = {"signal_date": str(sig_date.date()), "exec_date": exec_date,
                "signal_month": str(sig_date.to_period("M")), "data_end": str(data_end.date()),
                "k": K, "mom_days": MOM_DAYS, "weight": WEIGHT, "target_vol": TARGET_VOL,
+               # 参数口径必须跟着信号一起落盘：谁引用这个月的持仓，就能核对用的是哪组参数、
+               # 以及这组参数到底有没有对应的样本外成绩（评审 P1 的收口点）
+               "params": params, "params_sha256": params_sha,
+               "params_source": "default" if args.params is None else str(args.params),
+               "params_display": live_params.describe(params),
+               "oos_reference": oos_ref,
                "scale": round(scale, 12), "est_vol": round(est_vol, 12),
                "selected": list(selected), "rows": rows,
                "turnover_one_way": round(gross_frac, 12), "cost_bp_est": round(cost_bp_est, 12),
@@ -223,8 +236,12 @@ def main():
     L = [f"# 当期目标持仓（信号月 {sig_date.to_period('M')}）\n",
          f"- 命令：`{' '.join([sys.executable, str(Path(__file__)), *sys.argv[1:]])}`",
          f"- 数据截止 **{data_end.date()}**；信号日 **{sig_date.date()}**；成交日 **{exec_date}**",
-         f"- 口径锁死：t 收盘信号 / t+1 开盘成交 / 月度 / K={K} / 12-1 动量 / 等权 / 单边 {COST_BP:g}bp / "
-         f"目标波动 {TARGET_VOL:.0%} / 杠杆 ≤1.0",
+         f"- 口径锁死：t 收盘信号 / t+1 开盘成交 / 月度 / 单边 {COST_BP:g}bp / 杠杆 ≤1.0",
+         f"- 参数：{live_params.describe(params)}（`{params_sha}`，来源 {payload['params_source']}）",
+         f"- 参数对应的样本外成绩：{oos_ref['report'] or '**没有**'} —— {oos_ref['note']}",
+         ("" if args.params is not None else
+          "- ⚠️ **注意**：本报告用的是默认参数，仓库里**没有**这组参数的样本外报告。"
+          "README 里的 1.02 夏普来自「每年重新选参」的流程，不能拿来给这份持仓背书。"),
          f"- `signal_sha256` **{signal_sha}** ｜ 脚本 `run_signal.py {sha_file(Path(__file__))[:16]}` ｜ "
          f"引擎 `xsec.py {sha_file(ROOT / 'xsec.py')[:16]}`",
          f"- `code_sha256` **{pc.code_sha256()}**（参与计算的源码按固定顺序合并哈希）",
