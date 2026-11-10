@@ -13,9 +13,23 @@
 - 获取示例：
 
 ```python
+from pathlib import Path
+import pandas as pd
 import yfinance as yf
-df = yf.download("SPY", start="2006-01-01", auto_adjust=True, actions=False)
-df.reset_index().to_csv("data/SPY.csv", index=False)
+
+Path("data").mkdir(exist_ok=True)
+UNIVERSE = ["SPY", "QQQ", "IEF", "TLT", "GLD", "DBC", "VNQ", "EFA", "EEM", "UUP"]
+for t in UNIVERSE:
+    df = yf.download(t, start="2006-01-01", auto_adjust=True, actions=False)
+    # yfinance 新版返回 MultiIndex 列，直接 reset_index().to_csv() 会写出两行表头、
+    # 且日期列名为 Date；load_data(parse_dates=["date"]) 要求单行表头 + 小写 date，
+    # 否则报 Missing column 'date'，故在这里统一归一化到流水线读取的格式。
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df.droplevel(1, axis=1)
+    out = df.reset_index().rename(columns=str.lower)
+    out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
+    out[["date", "open", "high", "low", "close", "volume"]].to_csv(
+        f"data/{t}.csv", index=False)
 ```
 
 - 许可：**Yahoo Finance 条款未授予数据再分发权**，因此本仓不提供任何 CSV/Parquet，请遵守其条款自行获取。
