@@ -25,6 +25,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent
 RUNS_DIR = ROOT / "runs"
 sys.path.insert(0, str(ROOT))
+import live_params  # noqa: E402
 import monthly_report  # noqa: E402
 import pipeline_core as pc  # noqa: E402
 import xsec  # noqa: E402
@@ -216,6 +217,12 @@ def main():
         run_dir = RUNS_DIR / f"{stamp}_{i:02d}"
     run_dir.mkdir(parents=True)
 
+    # 当期选参导出：让 run_signal.py --params 能真的用上本次 walk-forward 选出的参数。
+    # 映射与校验收口在 live_params（无 pandas 依赖），不在这里再抄一份中文展示值转换。
+    live = live_params.params_from_window(windows[-1], pc.MOM_MONTHS)
+    (run_dir / "live_params.json").write_text(
+        json.dumps(live, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
     scripts = (f"run_monthly.py {sha_file(ROOT / 'run_monthly.py')[:16]} / "
                f"pipeline_core.py {sha_file(ROOT / 'pipeline_core.py')[:16]} / "
                f"monthly_report.py {sha_file(ROOT / 'monthly_report.py')[:16]}")
@@ -248,6 +255,8 @@ def main():
     print(f"基准 同起点 {f['cagr']*100:.2f}% / 连续 {c['cagr']*100:.2f}%；"
           f"缺口 {(c['cagr']-s['cagr'])*1e4:+.0f}bp（基准−策略，正=跑输）")
     print(f"确定性: {determ['status']}")
+    print(f"当期选参: runs/{run_dir.name}/live_params.json "
+          f"({live_params.describe(live)}, sha {live_params.params_sha256(live)[:8]})")
 
 
 if __name__ == "__main__":

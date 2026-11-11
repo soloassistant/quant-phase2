@@ -4,10 +4,10 @@
 和每月实际下单（写死 K=3 / 12-1 / 等权）不是同一套参数」。
 把参数集中到这里之后：
 · 出信号时会把这套参数与它的 sha256 写进 metrics.json，谁引用都能核对；
-· `--params` 可以指向选参产出的 JSON，让实盘真的用上选出来的参数；
-· 不传参时用 DEFAULT_PARAMS，并在报告里标注「该组参数没有对应的样本外报告」。
+· `--params` 可以指向 run_monthly.py 导出的当期选参 JSON，让实盘用上选出来的参数；
+· 不传参时用 DEFAULT_PARAMS，报告里引用它自己那份样本外成绩，不再借用 1.02 夏普。
 
-本模块**不 import pandas**，因此可在干净环境里直接用 unittest 跑。
+本模块**不 import pandas**，因此可在干净环境里直接用 unittest 跑（CI 不装第三方依赖）。
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 __all__ = ["DEFAULT_PARAMS", "OOS_REFERENCE", "ParamsError", "params_sha256",
-           "validate_params", "load_params", "describe"]
+           "validate_params", "load_params", "params_from_window", "describe"]
 
 # 实盘默认参数：与历史「1.02 夏普」那套**不是**同一组（后者来自每年重新选参）。
 DEFAULT_PARAMS = {
@@ -27,17 +27,20 @@ DEFAULT_PARAMS = {
     "target_vol": 0.10,
 }
 
-# 声明：哪组参数对应哪份样本外成绩。宁可不给数字，也不让两组口径混着被引用。
+# 声明：哪组参数对应哪份样本外成绩。两个路径都指向仓内真实文件，
+# 由 tests/test_source_regressions.py 断言存在，避免再出现「指向不存在的报告」。
 OOS_REFERENCE = {
     "walk_forward": {
         "params": "每年用前 8 年重新选参，后 1 年检验，间隔 1 个月",
-        "report": "out_oos/metrics.json",
-        "note": "README 里的 1.02 夏普来自这组流程，不是 DEFAULT_PARAMS",
+        "report": "experiments/out/baseline.json",
+        "note": "README 里的 1.02 夏普来自这组流程，不是 DEFAULT_PARAMS；"
+                "仅当 --params 指向 run_monthly.py 导出的当期选参 JSON 时可引用",
     },
     "default_params": {
         "params": "DEFAULT_PARAMS（K=3 / 12-1 / 等权 / 无过滤 / 目标波动 10%）",
-        "report": None,
-        "note": "仓库内**没有**这组参数的样本外报告；引用前必须先跑 oos_multi.py --fixed",
+        "report": "experiments/out/fixed_default_oos.json",
+        "note": "独立样本外成绩（Sharpe 0.969）；复算 python experiments/fixed_default_oos.py，"
+                "不得与 walk-forward 的 1.02 混用",
     },
 }
 
@@ -46,7 +49,8 @@ _LIMITS = {
     "mom_days": (21, 504),
     "target_vol": (0.01, 1.0),
 }
-_WEIGHTS = {"equal"}
+# walk-forward 候选网格里就有 inv_vol；不放行的话，导出的当期选参 JSON 会被自己的校验拒掉。
+_WEIGHTS = {"equal", "inv_vol"}
 
 
 class ParamsError(ValueError):
@@ -127,3 +131,28 @@ def load_params(path: str | Path | None = None) -> dict:
     if not isinstance(raw, dict):
         raise ParamsError(f"参数文件顶层必须是对象: {p}")
     return _validate(raw)
+
+
+def params_from_window(window: dict, mom_days: dict) -> dict:
+    """把 walk_forward 最后一个验证窗的选中参数转成可落盘的字段。
+
+    窗口里 filter/weight 是中文展示值、动量按月计；这里统一转成引擎字段名。
+    映射表由调用方（run_monthly.py）传入 pipeline_core.MOM_MONTHS，
+    避免在这个不依赖 pandas 的模块里再抄一份候选网格。
+    遇到未知展示值直接失败 —— 静默猜一个参数就是评审 P1 那类事故的源头。
+    """
+    weights = {"等权": "equal", "波动倒数": "inv_vol"}
+    filters = {"无": False, "有": True}
+    if window["weight"] not in weights or window["filter"] not in filters:
+        raise ParamsError(f"窗口展示值无法映射: filter={window['filter']!r} "
+                          f"weight={window['weight']!r}")
+    months = int(window["mom_months"])
+    if months not in mom_days:
+        raise ParamsError(f"窗口动量月数 {months} 不在候选网格 {sorted(mom_days)} 中")
+    return validate_params({
+        "k": int(window["k"]),
+        "mom_days": int(mom_days[months]),
+        "use_filter": filters[window["filter"]],
+        "weight": weights[window["weight"]],
+        "target_vol": DEFAULT_PARAMS["target_vol"],
+    })

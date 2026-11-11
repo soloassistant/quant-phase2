@@ -84,5 +84,42 @@ class FileTest(unittest.TestCase):
                 lp.load_params(f)
 
 
+class WindowExportTest(unittest.TestCase):
+    """run_monthly.py 导出的当期选参，必须能被 --params 原样读回去。"""
+
+    MOM = {6: 126, 9: 189, 12: 252}
+
+    def test_last_window_roundtrip(self):
+        # 当前 main 最后一个验证窗选的就是 inv_vol；不放行它，通道等于没接上。
+        w = {"k": 3, "mom_months": 12, "filter": "无", "weight": "波动倒数"}
+        p = lp.params_from_window(w, self.MOM)
+        self.assertEqual(p, {"k": 3, "mom_days": 252, "use_filter": False,
+                             "weight": "inv_vol", "target_vol": 0.10})
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "live_params.json"
+            f.write_text(json.dumps(p), encoding="utf-8")
+            self.assertEqual(lp.load_params(f), p)
+
+    def test_equal_weight_window_roundtrip(self):
+        w = {"k": 2, "mom_months": 6, "filter": "有", "weight": "等权"}
+        p = lp.params_from_window(w, self.MOM)
+        self.assertEqual((p["k"], p["mom_days"], p["use_filter"], p["weight"]),
+                         (2, 126, True, "equal"))
+
+    def test_unknown_display_value_rejected(self):
+        with self.assertRaises(lp.ParamsError):
+            lp.params_from_window(
+                {"k": 3, "mom_months": 12, "filter": "?", "weight": "等权"}, self.MOM)
+
+    def test_month_outside_grid_rejected(self):
+        with self.assertRaises(lp.ParamsError):
+            lp.params_from_window(
+                {"k": 3, "mom_months": 24, "filter": "无", "weight": "等权"}, self.MOM)
+
+    def test_inv_vol_is_allowed(self):
+        p = lp.validate_params(dict(lp.DEFAULT_PARAMS, weight="inv_vol"))
+        self.assertEqual(p["weight"], "inv_vol")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

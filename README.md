@@ -43,13 +43,31 @@ for t in UNIVERSE:
 
 | 口径 | 参数 | 对应的成绩 |
 |---|---|---|
-| 报告里的样本外夏普 **1.02** | 每年用前 8 年重新选参、后 1 年检验、间隔 1 个月 | `out_oos/metrics.json` |
-| `run_signal.py` 默认输出 | `K=3` / 12-1 动量 / 等权 / 无过滤 / 目标波动 10% | **仓库内没有这组参数的样本外报告** |
+| 报告里的样本外夏普 **1.02** | 每年用前 8 年重新选参、后 1 年检验、间隔 1 个月 | `experiments/out/baseline.json` |
+| `run_signal.py` 默认输出 | `K=3` / 12-1 动量 / 等权 / 无过滤 / 目标波动 10% | `experiments/out/fixed_default_oos.json`（夏普 **0.969**） |
 
-现在每次出信号都会把参数、`params_sha256` 和「有没有对应报告」写进
-`signals/<run>/metrics.json` 与 `report.md`；`--params <json>` 可以把选参结果
-喂给实盘，届时报告里会自动换成 walk-forward 那条引用。
-**在补出固定参数的样本外报告之前，不要用 1.02 给默认参数下的持仓背书。**
+**两组口径各有独立报告，不要互换。** 固定参数那份由
+`python experiments/fixed_default_oos.py` 复算：区间同为 2016-02-29 → 2026-02-27，
+但它是**单次连续运行、参数全程不变**；walk-forward 那份是**每年换参后拼接**。
+引擎、成本、执行口径相同，计算对象不同，指标不可相加。
+
+| 指标 | walk-forward（1.02 那套） | 默认固定参数 |
+|---|---|---|
+| CAGR | 10.66% | 10.38% |
+| Sharpe | 1.024 | 0.969 |
+| MDD | −17.29% | −19.15% |
+| Calmar | 0.616 | 0.542 |
+| 年换手 | 778.89% | 539.48% |
+
+结论：**默认参数下「最大回撤更浅」不成立**，夏普相对基准（约 0.94）的优势从
++0.08 缩到 +0.03，年化缺口从 108bp 扩大到 136.5bp。
+
+每次出信号都会把参数、`params_sha256` 与对应的报告路径写进
+`signals/<run>/metrics.json` 与 `report.md`，引用按**参数指纹**选择，不按有没有传参。
+`--params <json>` 用来喂选参结果，唯一合法来源是 `run_monthly.py` 每次运行导出的
+`runs/<run_id>/live_params.json`（最后一个验证窗选中的参数，字段已经过
+`live_params.load_params()` 校验）。手写或改过的参数文件**不对应任何样本外成绩**，
+不得引用上表任一数字。
 
 ### 2. 月末判定改用 NYSE 日历
 
@@ -94,6 +112,9 @@ CI 见 `.github/workflows/ci.yml`，只跑 stlib 测试 + 语法检查；真回�
 3. **先跑一次 `python run_monthly.py`**：`experiments/opt_20261108.py` 的 `baseline`
    变体会校核 `runs/` 里最近一次 `metrics.json`，没有就报 `[基线缺失]` 退出；
    `experiments/out/baseline.json` 等实验产物也依赖这条基线。
+   每次运行还会在 `runs/<run_id>/` 导出 `live_params.json`（当期选参），
+   把它传给 `python run_signal.py --params runs/<run_id>/live_params.json`
+   就能让实盘用上本次选出的参数；不传则用默认固定参数，引用它自己那份报告。
 4. 历史研究脚本 `risk_oos.py` / `oos_multi.py` / `turnover.py` / `universe.py`
    另需未随仓分发的历史产物（例如 `out/walkforward_v2/oos_nav.csv`），缺文件时
    直接退出并打印路径。这四个脚本不在月度流水线内，不影响

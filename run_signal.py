@@ -83,8 +83,8 @@ def main():
     ap.add_argument(
         "--params",
         help="参数文件（JSON，字段同 live_params.DEFAULT_PARAMS）。"
-             "想用选参结果出信号就指到那份 JSON；不传则用默认参数，"
-             "并在报告里注明「该组参数没有对应的样本外成绩」。",
+             "用选参结果出信号就指向 run_monthly.py 导出的 runs/<id>/live_params.json；"
+             "不传则用默认参数。两条路径各自引用自己的样本外报告。",
     )
     ap.add_argument("--mutate", choices=("top5", "reverse"), help=argparse.SUPPRESS)
     args = ap.parse_args()
@@ -99,8 +99,10 @@ def main():
     WEIGHT = params["weight"]
     TARGET_VOL = params["target_vol"]
     params_sha = live_params.params_sha256(params)
-    # 参数来源决定「能不能引用 1.02 夏普」：默认参数没有对应报告，就别拿它背书
-    oos_ref = live_params.OOS_REFERENCE["default_params" if args.params is None else "walk_forward"]
+    # 用参数指纹选引用，而不是「有没有传 --params」：传一份内容等于默认值的文件，
+    # 也应引用固定参数那份报告，不能因为走了 --params 就借到 1.02 夏普。
+    is_default = params_sha == live_params.params_sha256(live_params.DEFAULT_PARAMS)
+    oos_ref = live_params.OOS_REFERENCE["default_params" if is_default else "walk_forward"]
 
     if args.mutate == "top5":
         raise SystemExit(f"[门禁失败] 持仓数被改成 K=5，锁定 K={K}；拒绝出信号")
@@ -181,9 +183,13 @@ def main():
         if cur_w <= 1e-12 and pre_w <= 1e-12:
             continue
         status = "新增" if pre_w <= 1e-12 else ("剔除" if cur_w <= 1e-12 else "保留")
+        # 目标权重 = 引擎缩放前的相对权重（实际权重 / scale）。
+        # 原来写死 1/K：--params 接入 inv_vol 后会显示 33.33%，与实际权重自相矛盾。
+        # 等权时 cur_w/scale 恒等于 1/K，默认口径输出逐字不变。
+        target_w = cur_w / scale if scale > 0 else 0.0
         rows.append({"代码": t, "名称": NAMES.get(t, t),
                      "动量得分": f"{float(mom[t])*100:.2f}%" if pd.notna(mom[t]) else "n/a",
-                     "目标权重": _pct(1.0 / K) if cur_w > 1e-12 else "0.00%",
+                     "目标权重": _pct(target_w) if cur_w > 1e-12 else "0.00%",
                      "实际权重": _pct(cur_w, 4),
                      "信号日": str(sig_date.date()), "成交日": exec_date,
                      "上期权重": _pct(pre_w, 4), "权重变化": f"{(cur_w - pre_w)*100:+.4f}pp",

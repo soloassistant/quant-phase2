@@ -1,0 +1,132 @@
+{
+  "generated_by": "experiments/fixed_default_oos.py",
+  "command": "python experiments/fixed_default_oos.py",
+  "method": "单次连续运行固定参数；不是每年换参的 walk-forward 拼接",
+  "params": {
+    "k": 3,
+    "mom_days": 252,
+    "use_filter": false,
+    "weight": "equal",
+    "target_vol": 0.1
+  },
+  "params_sha256": "4ddf7720fb1f22e2604cca78a1eca58622d43e27c51b81fcd61b27d0e4956ceb",
+  "period": {
+    "start": "2016-02-29",
+    "end": "2026-02-27",
+    "n_rows": 2515,
+    "common_start": "2008-02-29",
+    "data_end": "2026-11-04",
+    "aligned_with": "experiments/out/baseline.json → oos.start / oos.end"
+  },
+  "metrics": {
+    "cagr": 0.10375314,
+    "ann_vol": 0.1081224,
+    "sharpe": 0.96919142,
+    "max_drawdown": -0.19151582,
+    "annual_turnover": 5.39484711,
+    "cost_annual_bp": 37.76392975,
+    "cost_total_bp": 377.48420944,
+    "n_trades": 120.0,
+    "calmar": 0.54174711
+  },
+  "benchmarks": {
+    "same_start": {
+      "start": "2016-02-29",
+      "end": "2026-02-27",
+      "years": 9.9959,
+      "cagr": 0.10503048802730452,
+      "ann_vol": 0.11340332935885868,
+      "sharpe": 0.9394403100325951,
+      "max_drawdown": -0.2083030845685726,
+      "monthly_win_rate": 0.7,
+      "final_nav": 271.37165062306826,
+      "calmar": 0.5042195522204516
+    },
+    "continuous": {
+      "start": "2016-02-29",
+      "end": "2026-02-27",
+      "years": 9.9959,
+      "cagr": 0.11739975424005467,
+      "ann_vol": 0.12888940931455498,
+      "sharpe": 0.9276748241911308,
+      "max_drawdown": -0.26288156330220847,
+      "monthly_win_rate": 0.6916666666666667,
+      "final_nav": 303.3107013285085,
+      "calmar": 0.4465880100731598
+    }
+  },
+  "gap_bp": {
+    "same_start": 12.7735,
+    "continuous": 136.4661
+  },
+  "comparison_to_walk_forward": {
+    "reference": "experiments/out/baseline.json（walk-forward 每年重新选参）",
+    "sharpe_diff": -0.05521352,
+    "cagr_diff_pp": -0.283366,
+    "mdd_diff_pp": -1.86233719,
+    "calmar_diff": -0.07474483,
+    "note": "差值 = 固定参数 − walk-forward；正/负只表示两组口径的差异，不是策略改进量"
+  },
+  "data": {
+    "source": "Yahoo Finance / yfinance auto_adjust=True（见 README 数据声明）",
+    "files": [
+      {
+        "file": "SPY.csv",
+        "sha256": "2a7d02246488b3f9d858d15d36c051ff771a3e4783ffeff49000c3b79f5558ef"
+      },
+      {
+        "file": "QQQ.csv",
+        "sha256": "5251c9a3e66ad3d9ae4425c42314912b7506af3c87d8d4c897ebfd5cbf04005a"
+      },
+      {
+        "file": "IEF.csv",
+        "sha256": "8efb200ddfb5be5789a459794081bd0adcf41c165da4122b22aaed377ed39ce0"
+      },
+      {
+        "file": "TLT.csv",
+        "sha256": "bf29394539ce4c68f56f7120ead7e75553c0e0b5d865a523d11ae65caaa0eefb"
+      },
+      {
+        "file": "GLD.csv",
+        "sha256": "9b365cd90bdc477464ce3591b5175e93e34bb861dfda8fa5a9312dae0b9fb234"
+      },
+      {
+        "file": "DBC.csv",
+        "sha256": "dc6fc4aedf368f67140e5d187362cd92d4a12dbb3caf1b24a4119c99d16e24ed"
+      },
+      {
+        "file": "VNQ.csv",
+        "sha256": "18dc27f51b85240257ed13402a1ef7e9ad5b14cb6bd4faf4eb95f7e3dd82ee3d"
+      },
+      {
+        "file": "EFA.csv",
+        "sha256": "839997eeeb0513b1cd6b013c58783d2cfab5cdfcadaa37075c888ff9d2a3b197"
+      },
+      {
+        "file": "EEM.csv",
+        "sha256": "4b68e70977f43cb898064258bd438ad81971e2d38f274d891fa937eeca917e3c"
+      },
+      {
+        "file": "UUP.csv",
+        "sha256": "e7d5e4bdd33e2b1660f8be346bfde9dba1c0512fc45324328875122f81f343fc"
+      }
+    ]
+  },
+  "code": {
+    "xsec.py": "8c0826eff2cbea8deda096f9add73823def151224f1908a503fd29fa1804312d",
+    "pipeline_core.py": "b8277c19659fed69cf6f897dec8a428b3e534c88823d450a6f92a57af4794af1",
+    "guards.py": "719a85da0a36bc0fb80a495895b3f3e78d904a6ee66419274cfdfce29846f905",
+    "engine.py": "dc2ea4a18c5f0a97f7e2ccd6958e838efef3bc77d6e57d99415c8b848a394d5d",
+    "live_params.py": "d19e2a4d0eca644b4f7d8036b67563e6fde9720a3170967869bd119a44c3f528"
+  },
+  "environment": {
+    "python": "3.13.14",
+    "pandas": "3.1.1"
+  },
+  "caveats": [
+    "这组参数有独立报告，不等于 README 的 1.02 夏普属于它；两组口径不可互换。",
+    "标的池是 10 只存活至今的 ETF，存在幸存者偏差；Yahoo 复权价不是可成交价格。",
+    "单边 7bp（5bp 佣金 + 2bp 滑点）对 VNQ / DBC 等偏乐观，见 SUMMARY 已知边界。",
+    "数据文件未入仓（Yahoo 条款），重新下载后字节不同，指标会有 1e-6 级漂移。"
+  ]
+}

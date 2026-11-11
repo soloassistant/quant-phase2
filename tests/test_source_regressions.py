@@ -63,13 +63,23 @@ class LiveParamsWiringTest(unittest.TestCase):
         for token in ('"--params"', "params_sha256", "oos_reference", "live_params.load_params"):
             self.assertIn(token, src, f"run_signal.py 缺少参数出处声明: {token}")
 
-    def test_default_params_are_not_the_walk_forward_set(self):
+    def test_both_param_sets_have_real_reports(self):
+        # 评审 P1 的收口点：两组参数必须各有真实存在的报告，且不能共用一份。
         import live_params as lp
 
-        self.assertIsNone(
-            lp.OOS_REFERENCE["default_params"]["report"],
-            "默认参数不应声称有样本外报告；有的话请把报告路径写上并同步 README",
-        )
+        reports = {k: v["report"] for k, v in lp.OOS_REFERENCE.items()}
+        self.assertEqual(set(reports), {"walk_forward", "default_params"})
+        for key, rel in reports.items():
+            self.assertIsNotNone(rel, f"{key} 缺样本外报告路径")
+            self.assertTrue((ROOT / rel).is_file(), f"{key} 指向不存在的报告: {rel}")
+        self.assertNotEqual(reports["walk_forward"], reports["default_params"],
+                            "两组参数不能共用一份样本外报告")
+
+    def test_monthly_run_exports_selected_params(self):
+        # --params 通道必须有真实来源，不能只是文档里的口头约定。
+        src = (ROOT / "run_monthly.py").read_text(encoding="utf-8")
+        for token in ('"live_params.json"', "params_from_window", "pc.MOM_MONTHS"):
+            self.assertIn(token, src, f"run_monthly.py 缺少当期选参导出: {token}")
 
 
 class StaleScriptRefsTest(unittest.TestCase):
