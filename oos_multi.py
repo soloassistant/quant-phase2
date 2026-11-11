@@ -47,7 +47,7 @@ def table(headers, rows):
     return "\n".join(lines)
 
 
-def run_offset(data, base_start, end, offset):
+def run_offset(data, base_start, end, offset, panels=None):
     t0 = pd.Timestamp(base_start) + pd.DateOffset(months=offset)
     windows, returns = [], []
     while True:
@@ -59,7 +59,7 @@ def run_offset(data, base_start, end, offset):
         sel = []
         for k, mom_days, use_filter, weight in CANDIDATES:
             r = xsec.run(data, k=k, mom_days=mom_days, use_filter=use_filter,
-                         weight=weight, start=t0, end=purge)
+                         weight=weight, start=t0, end=purge, panels=panels)
             med, worst, n = xsec.rolling_median_sharpe(r.nav["nav"], t0, purge)
             sel.append({"k": k, "mom_days": mom_days, "filter": use_filter,
                         "weight": weight, "med": med, "worst": worst})
@@ -77,7 +77,7 @@ def run_offset(data, base_start, end, offset):
 
         val = xsec.run(data, k=pick["k"], mom_days=pick["mom_days"],
                        use_filter=pick["filter"], weight=pick["weight"],
-                       start=te, end=ve_end)
+                       start=te, end=ve_end, panels=panels)
         bench = xsec.run_benchmark(data, te, ve_end)
         vm, bm = val.metrics, xsec.simple_metrics(bench)
         windows.append({
@@ -155,15 +155,19 @@ def plot(results, path):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     data = xsec.load_data()
-    _, close_df = xsec.build_panels(data)
+    open_df, close_df = xsec.build_panels(data)
     base_start = xsec.common_start(close_df)
     end = close_df.index[-1]
+    # 面板/日历/月末标记只依赖 data，一次算好传给每次候选回测（否则 1200 次全样本重算）
+    panels = (open_df, close_df, close_df.index, close_df.ffill(),
+              close_df.pct_change(fill_method=None).ffill(),
+              xsec.month_end_flags(close_df.index))
     print(f"样本 {base_start.date()} → {end.date()}", flush=True)
 
     results = []
     for off in OFFSETS:
         print(f"\n== offset {off}m ==", flush=True)
-        results.append(run_offset(data, base_start, end, off))
+        results.append(run_offset(data, base_start, end, off, panels))
 
     all_windows = [w for r in results for w in r["windows"]]
     pd.DataFrame(all_windows).to_csv(OUT / "windows.csv", index=False, encoding="utf-8-sig")

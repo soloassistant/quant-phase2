@@ -140,15 +140,26 @@ class Result:
 
 def run(data, k: int = 3, mom_days: int = 252, use_filter: bool = False,
         weight: str = "equal", target_vol: float = TARGET_VOL,
-        start=None, end=None, exec_mode: str = "next_open") -> Result:
+        start=None, end=None, exec_mode: str = "next_open",
+        panels=None) -> Result:
     """exec_mode:
       next_open —— 正常口径: t 收盘信号, t+1 开盘成交
       close     —— 变异测试用: t 收盘信号, t 收盘成交(前视), 断言必须变红
+
+    panels —— 可选 (open_df, close_df, cal, close_ff, ret_f, flags) 元组。
+      这六样只依赖 data、与策略参数无关。walk-forward 一次算好后传入，可省掉
+      每次候选回测里对全样本 panel / month_end_flags 的重复构建（1200 次量级）。
+      不传则内部现算，行为与旧版完全一致。
     """
-    open_df, close_df = build_panels(data)
-    cal = close_df.index
-    close_ff = close_df.ffill()
-    ret_f = close_df.pct_change(fill_method=None).ffill()
+    if panels is None:
+        open_df, close_df = build_panels(data)
+        cal = close_df.index
+        close_ff = close_df.ffill()
+        ret_f = close_df.pct_change(fill_method=None).ffill()
+        flags = month_end_flags(cal)
+    else:
+        open_df, close_df, cal, close_ff, ret_f, flags = panels
+
     cols = list(close_df.columns)
 
     def snap(ts, method="pad"):
@@ -157,12 +168,36 @@ def run(data, k: int = 3, mom_days: int = 252, use_filter: bool = False,
 
     start_idx = snap(start) if start else 0
     end_idx = snap(end) if end else len(cal) - 1
-    flags = month_end_flags(cal)
+
+    # 预扫描：把月末目标与成交计划先算出来。这一步的 make_target 调用次数与顺序
+    # 同旧版逐日循环完全一致，只是提前，不改变任何结果；目的是后面能按「调仓段」
+    # 批量算 NAV，去掉逐日的 pandas 标量开销。
+    signals = []
+    targets = {}
+    # execs 项: (nav_new_from_i, trade_i, signal_i)
+    # nav_new_from_i 起改用新持仓（与旧版一致：成交当天的 NAV 仍用旧仓，
+    #   next_open 次日开盘成交、close 当天收盘成交，两种口径下新仓都从成交次日生效）。
+    execs = []
+    for i in range(start_idx, end_idx + 1):
+        if flags[i] and i + 1 <= end_idx:
+            target, diag = make_target(close_df, ret_f, i, k, mom_days,
+                                       use_filter, weight, target_vol)
+            row = {"date": cal[i], "selected": ",".join(diag["selected"]),
+                   "n_selected": len(diag["selected"]), "reason": diag["reason"],
+                   "est_vol": diag["est_vol"], "scale": diag["scale"],
+                   "sum_weight": float(target.sum())}
+            row.update({f"w_{c}": float(target[c]) for c in cols})
+            signals.append(row)
+            targets[i] = target
+            if exec_mode == "close":
+                execs.append((i + 1, i, i))
+            else:
+                execs.append((i + 1, i + 1, i))
+    execs.sort()
 
     cash, shares = 100.0, pd.Series(0.0, index=cols)
     last_target = pd.Series(0.0, index=cols)
-    pending = None
-    rows, trades, signals = [], [], []
+    trades = []
 
     def execute(target_w, d, px, px_source, signal_date):
         nonlocal cash, shares, last_target
@@ -195,40 +230,45 @@ def run(data, k: int = 3, mom_days: int = 252, use_filter: bool = False,
         })
         last_target = w.copy()
 
-    for i in range(start_idx, end_idx + 1):
-        d = cal[i]
-
-        if pending is not None:
-            sig_date, target = pending
-            # 缺开盘价直接失败：原先这里会退回当日收盘价，等于开盘时已知道收盘，
-            # 属于静默前视（评审 P3）。宁可中断，也不用假成交价。
-            op_checked = guards.check_open_prices(d.date(), open_df.loc[d].to_dict())
+    # 按调仓段批量算日 NAV：两次成交之间持仓与现金不变，NAV_t = cash + shares·close_t。
+    # 整段用 (shares * close_seg).sum(axis=1) 一次算出，每个交易日的求和列序与逐日
+    # 计算完全相同 → 数值逐位一致（不是"近似相等"）。
+    dates, navs, cashs, expos, nhs = [], [], [], [], []
+    day, ep = start_idx, 0
+    while day <= end_idx:
+        while ep < len(execs) and execs[ep][0] <= day:
+            ep += 1
+        if ep < len(execs):
+            nf, ti, si = execs[ep]
+            seg_end = min(nf - 1, end_idx)
+        else:
+            nf = None
+            seg_end = end_idx
+        if seg_end >= day:
+            seg_close = close_ff.iloc[day:seg_end + 1]
+            dot = (shares * seg_close).sum(axis=1)
+            seg_nav = cash + dot
+            seg_expo = dot / seg_nav
+            L = seg_end - day + 1
+            dates.extend(cal[day:seg_end + 1])
+            navs.extend(seg_nav.to_numpy())
+            cashs.extend([cash] * L)
+            expos.extend(seg_expo.to_numpy())
+            nhs.extend([int((shares > 1e-9).sum())] * L)
+        if nf is None:
+            break
+        if exec_mode == "close":
+            execute(targets[si], cal[ti], close_ff.loc[cal[ti]], "close", cal[si])
+        else:
+            # 缺开盘价直接失败：不许退回当日收盘价（那等于开盘时已知收盘，静默前视，评审 P3）。
+            op_checked = guards.check_open_prices(cal[ti].date(),
+                                                  open_df.loc[cal[ti]].to_dict())
             op = pd.Series(op_checked).reindex(close_df.columns)
-            execute(target, d, op, "open", sig_date)
-            pending = None
+            execute(targets[si], cal[ti], op, "open", cal[si])
+        day = nf
 
-        px_close = close_ff.loc[d]
-        nav = cash + float((shares * px_close).sum())
-        rows.append({"date": d, "nav": nav, "cash": cash,
-                     "exposure": float((shares * px_close).sum()) / nav if nav > 0 else 0.0,
-                     "n_holdings": int((shares > 1e-9).sum())})
-
-        if flags[i] and i + 1 <= end_idx:
-            target, diag = make_target(close_df, ret_f, i, k, mom_days,
-                                       use_filter, weight, target_vol)
-            row = {"date": d, "selected": ",".join(diag["selected"]),
-                   "n_selected": len(diag["selected"]), "reason": diag["reason"],
-                   "est_vol": diag["est_vol"], "scale": diag["scale"],
-                   "sum_weight": float(target.sum())}
-            row.update({f"w_{c}": float(target[c]) for c in cols})
-            signals.append(row)
-
-            if exec_mode == "close":
-                execute(target, d, close_ff.loc[d], "close", d)
-            else:
-                pending = (d, target)
-
-    nav_df = pd.DataFrame(rows).set_index("date")
+    nav_df = pd.DataFrame({"date": dates, "nav": navs, "cash": cashs,
+                           "exposure": expos, "n_holdings": nhs}).set_index("date")
     nav_df["nav"] = nav_df["nav"] / nav_df["nav"].iloc[0] * 100.0
     tr = pd.DataFrame(trades)
     sig = pd.DataFrame(signals)
