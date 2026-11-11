@@ -196,33 +196,41 @@ def run(data, k: int = 3, mom_days: int = 252, use_filter: bool = False,
     execs.sort()
 
     cash, shares = 100.0, pd.Series(0.0, index=cols)
-    last_target = pd.Series(0.0, index=cols)
+    last_target = np.zeros(len(cols))
     trades = []
 
     def execute(target_w, d, px, px_source, signal_date):
         nonlocal cash, shares, last_target
-        cur_val = pd.Series({t: shares[t] * px[t] for t in cols})
-        tradable = px.notna() & (px > 0)
-        w = target_w.where(tradable, 0.0)
-        pv = cash + float(cur_val.sum())
-        cost, target_val = 0.0, pd.Series(0.0, index=cols)
+        # 向量化到 numpy：pandas 每个 Series 运算有 ~百微秒派发开销，而 execute 每个
+        # 调仓日都要跑一次（8 年窗 ~95 次），是回测热点。pandas 的 .sum()/.abs()/布尔
+        # 索引底层都落到 np.sum/np.abs，且 px/shares 无 NaN，故 numpy 版数值逐位相同。
+        pxv = px.to_numpy()
+        tw = target_w.to_numpy()
+        lt = last_target
+        sh = shares.to_numpy()
+        tradable = ~np.isnan(pxv) & (pxv > 0)
+        w = np.where(tradable, tw, 0.0)
+        cur_val = sh * pxv
+        pv = cash + float(np.nansum(cur_val))
+        cost, target_val = 0.0, np.zeros_like(pxv)
         for _ in range(4):
             target_val = w * (pv - cost)
-            cost = float((target_val - cur_val).abs().sum()) * COST_RATE
+            cost = float(np.nansum(np.abs(target_val - cur_val))) * COST_RATE
         trade_val = target_val - cur_val
-        prev_held = last_target > 1e-9
+        prev_held = lt > 1e-9
         new_held = w > 1e-9
-        entry = float(trade_val[~prev_held & new_held].abs().sum())
-        exit_ = float(trade_val[prev_held & ~new_held].abs().sum())
-        adjust = float(trade_val[prev_held & new_held].abs().sum())
-        cash = cash - float(trade_val.sum()) - cost
-        for t in cols:
-            shares[t] = target_val[t] / px[t] if bool(tradable[t]) else 0.0
+        entry = float(np.nansum(np.abs(trade_val[~prev_held & new_held])))
+        exit_ = float(np.nansum(np.abs(trade_val[prev_held & ~new_held])))
+        adjust = float(np.nansum(np.abs(trade_val[prev_held & new_held])))
+        cash = cash - float(np.nansum(trade_val)) - cost
+        # 等价于 for t: shares[t] = target_val[t]/px[t] if tradable[t] else 0.0（逐位相同）
+        shares = pd.Series(np.where(tradable, target_val / np.where(tradable, pxv, 1.0), 0.0),
+                           index=cols)
         trades.append({
             "signal_date": pd.Timestamp(signal_date).date(),
             "exec_date": pd.Timestamp(d).date(),
             "px_source": px_source,
-            "gross_traded": float(trade_val.abs().sum()),
+            "gross_traded": float(np.nansum(np.abs(trade_val))),
             "cost": float(cost),
             "entry_traded": entry, "exit_traded": exit_, "adjust_traded": adjust,
             "nav_before": float(pv),
