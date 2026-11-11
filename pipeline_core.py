@@ -257,7 +257,10 @@ def effective_config(args):
         "locked": {"signal": "t_close", "fill": "t+1_open", "rebalance": "monthly",
                    "cost_bp_one_way": 7.0, "target_vol": 0.10, "leverage_cap": 1.0,
                    "cash_return": 0.0, "benchmark": "equal_weight_buy_and_hold_7bp_one_time"},
-        "data": {"dir": str(DATA_DIR), "end_override": args.end},
+        # 相对标签而非本机绝对路径：DATA_DIR = ROOT/"data" 会随仓库所在目录变化，
+        # 写进 config_sha256 会让「同一份代码 + 同一批数据」在两台机器上得到不同指纹。
+        # 绝对路径仍留在 metrics.json.inputs.data_dir 供人核对，但不参与任何哈希。
+        "data": {"dir": DATA_DIR.relative_to(ROOT).as_posix(), "end_override": args.end},
     }
 
 
@@ -274,6 +277,6 @@ def cfg_rows(cfg):
         ["选参", "候选数 / K / 动量月 / 权重",
          f'{g["n_candidates"]} / {g["k"]} / {g["mom_months"]} / {g["weight"]}'],
         ["选参", "过滤 / 邻域平坦", f'{g["use_filter"]} / {s["flat_neighborhood"]}'],
-        ["数据", "数据目录 / 截止覆盖",
+        ["数据", "数据目录（相对仓库根，不进指纹） / 截止覆盖",
          f'{cfg["data"]["dir"]} / {cfg["data"]["end_override"] or "无（用最新行）"}'],
     ]

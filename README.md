@@ -62,12 +62,19 @@ for t in UNIVERSE:
 结论：**默认参数下「最大回撤更浅」不成立**，夏普相对基准（约 0.94）的优势从
 +0.08 缩到 +0.03，年化缺口从 108bp 扩大到 136.5bp。
 
-每次出信号都会把参数、`params_sha256` 与对应的报告路径写进
-`signals/<run>/metrics.json` 与 `report.md`，引用按**参数指纹**选择，不按有没有传参。
-`--params <json>` 用来喂选参结果，唯一合法来源是 `run_monthly.py` 每次运行导出的
-`runs/<run_id>/live_params.json`（最后一个验证窗选中的参数，字段已经过
-`live_params.load_params()` 校验）。手写或改过的参数文件**不对应任何样本外成绩**，
-不得引用上表任一数字。
+每次出信号都会把参数、`params_sha256`、`params_provenance` 与对应的报告路径写进
+`signals/<run>/metrics.json` 与 `report.md`。引用由**参数指纹 + 来源**共同决定：
+
+| 传参方式 | 出处标记 | 引用的报告 |
+|---|---|---|
+| 不传 | `default` | `experiments/out/fixed_default_oos.json`（0.969） |
+| `--params runs/<run_id>/live_params.json` | `run_monthly.walk_forward`（已校验） | `experiments/out/baseline.json`（1.02） |
+| `--params` 指向手写文件 | `custom` | **无**，报告里明确禁止引用上表任一数字 |
+
+`run_monthly.py` 每次导出的选参文件带 `source`、`run_id`、`params_sha256` 与
+`result_sha256`；`live_params.load_params_file()` 会校验这些字段，**改过参数或自称来源
+的文件直接拒绝运行**。这不是文档约束：字段校验通过但来源不可信的文件会被自动降级成
+`custom`，拿不到 1.02 也拿不到 0.969 的背书。
 
 ### 2. 月末判定改用 NYSE 日历
 
@@ -88,18 +95,26 @@ for t in UNIVERSE:
 ### 4. 测试与 CI
 
 ```bash
-python -m unittest discover -s tests -v   # 45 个用例，不需要 pandas / 不需要行情数据
+python -m unittest discover -s tests -v   # 62 个纯 stdlib 用例，不需要 pandas / 不需要行情
+python -m unittest discover -s tests -p test_engine_parity.py -v   # 另 7 个，需要 pandas/numpy
 ```
 
-覆盖：交易日历（含 2021-05 月末、耶稣受难日、observed 规则）、参数校验与指纹稳定性、
+覆盖：交易日历（含 2021-05 月末、耶稣受难日、observed 规则）、参数校验与出处护栏、
 成交价护栏、以及**源码级回归**（谁把「收盘价顶替开盘价」「BDay 判月末」写回去就红）。
-CI 见 `.github/workflows/ci.yml`，只跑 stlib 测试 + 语法检查；真回测仍需自备行情。
+CI 见 `.github/workflows/ci.yml`：`test` job 跑 stdlib 测试 + 语法检查（parity 文件自动跳过），
+`parity` job 装 pandas/numpy 后单独跑数值对照；两者都不需要真实行情。真回测仍需自备行情。
 
-### 5. 两套引擎（未合并）
+### 5. 两套引擎（未合并，但数值已对照）
 
-`xsec.py` 与 `engine.py` 高度重复，目前**还没合并**。已做的是让两套引擎在成交价校验上
-同口径（都调 `guards.check_open_prices`），并加了源码断言防止只有一边被改。彻底合并或加
-「两套引擎默认参数结果逐位一致」的对照测试，仍待办。
+`xsec.py` 与 `engine.py` 高度重复，目前**还没合并**。已做的是：成交价校验同口径（都调
+`guards.check_open_prices`）、源码断言防止只有一边被改、以及 `tests/test_engine_parity.py`
+在确定性合成行情上真跑两套引擎做数值对照。
+
+实测结论（pandas 3.1.1 / numpy 2.5.4）：**默认参数下 nav / 成交 / 指标 / 信号权重逐位一致**；
+K=2 / 126 日 / 过滤 / inv_vol 同样逐位一致；K=3 / 189 日 / inv_vol 有 1.4e-14 级浮点差异，
+测试用 1e-12 上界钉住。`signals.selected` 只是展示顺序不同（标的集合相同），
+`signals.est_vol` 偶有 1 ULP 差异，这两项不参与数值断言。**彻底合并仍是待办**：
+对照测试只能发现口径漂移，不能消除重复实现。
 
 ## 复现前置条件
 
@@ -156,8 +171,9 @@ python run_signal.py
 ```
 
 - 输出到 `signals\<YYYYMMDD_HHMMSS>\`，每次新建目录，不覆盖历史。
-- `holdings.csv`：代码、名称、动量得分、目标权重（未缩放 1/3）、实际权重（目标波动 10% +
-  杠杆 ≤1.0 缩放后）、信号日、成交日、上期权重、权重变化、新增/保留/剔除。
+- `holdings.csv`：代码、名称、动量得分、目标权重（缩放前的组合内相对权重：等权为 1/K，
+  `inv_vol` 为波动倒数归一化）、实际权重（目标波动 10% + 杠杆 ≤1.0 缩放后）、信号日、
+  成交日、上期权重、权重变化、新增/保留/剔除。
 - `report.md`：本期持仓、与上期对比、单边换手与 7bp 成本预估、数据口径、门禁尾行。
 - `metrics.json`：`signal_sha256`、输入文件 sha256、完整性检查、与上一次信号的确定性对比。
 
@@ -191,7 +207,9 @@ python run_signal.py --mutate reverse
 （单边成本、目标波动、跳过天数、年化天数、波动窗口、默认成交模式）；
 其余项属于执行流程本身，由 `code_sha256` 指纹覆盖，改动会在
 `metrics.json.run.code_sha256` 与表 4 中可见。参数改动另会改变
-`config_sha256`，并出现在 `metrics.json.effective_config` 与表 4：
+`config_sha256`，并出现在 `metrics.json.effective_config` 与表 4。
+`config_sha256` 里的数据目录是**相对仓库根的标签**（`data`），不含本机绝对路径，
+所以换机器、换克隆目录不会让配置指纹漂移：
 
 - t 日收盘信号
 - t+1 开盘成交
@@ -245,13 +263,23 @@ OOS 只拼完整验证年，所以数据每月更新时 OOS 末端可能暂时�
 ```
 
 即 55bp/545bp **不含税、不含融券/融资、不含额外滑点**，就是「单边 7bp × 换手 × 年数」。
-本次口径核对未改动任何算法，`result_sha256` 保持 `00ba98b88cfceac6c1e537f69df850519d8cee117a219d2b39404a2f03fd8108`。
+归档指纹 `00ba98b88cfceac6c1e537f69df850519d8cee117a219d2b39404a2f03fd8108` 是**历史记录，不是当期验收基准**：
+`result_sha256` 的 payload 含 `inputs_fingerprint`（10 个 CSV 的字节 sha256），重新下载的数据
+字节必然不同；且 2026-11-11 起配置里的 `data.dir` 由本机绝对路径改为相对标签，
+`config_sha256` 也随之变化。两次改动都**不动算法**，指标仍与上表一致，
+但拿归档值逐位比对当期运行是没有意义的。要验的是指标、窗口选参与 `determinism.status`。
 
 ## 改参数、以及怎么对比上一期
 
 **改哪里**：`pipeline_core.py` 顶部的 `CANDIDATES` / `MOM_MONTHS` / `FLAT`，
 以及 `effective_config()` 里的 `walk_forward`、`candidate_grid`、`selection`。
 锁死项在 `locked` 字典里，不建议改；确需实验时必须同时改断言和本 README。
+
+固定参数报告 `experiments/out/fixed_default_oos.json` 里记录了生成时的源码 sha256
+（`xsec.py` / `pipeline_core.py` / `guards.py` / `engine.py` / `live_params.py`）与
+`params_sha256`。**改动这些文件后必须重跑 `python experiments/fixed_default_oos.py`
+刷新报告**，否则 CI 的 `ReportFingerprintTest` 会红。这是有意的：
+SUMMARY 曾出现过 5 个脚本指纹全部过期、把读者指向旧版本的情况。
 
 **改完怎么跑**：
 
@@ -308,7 +336,9 @@ MDD 与基线相同 −17.29%）。但分年度拆开：**2025 年 +4.25pp、202
 
 ## 可复现性
 
-- 同一输入、同一 Python/pandas/numpy 环境跑两次，`result_sha256` 必须逐位相同。
+- 同一输入、同一 Python/pandas/numpy 环境跑两次，`result_sha256` 必须逐位相同；
+  把仓库整体复制到别的目录再跑，指纹也应相同（配置哈希不含本机绝对路径）。
+  任何配置改动都会让与上一期的对比变成 `not_comparable`，这是有意的。
 - 流程无随机种子、无重采样；排序 key（动量降序 + 代码字典序）固定；浮点求和顺序固定。
 - 每次运行都会和最近一期比较：
   - `determinism.status = identical`：上一期与本期同配置同输入，指纹逐位相同；

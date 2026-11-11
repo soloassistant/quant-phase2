@@ -84,6 +84,76 @@ class FileTest(unittest.TestCase):
                 lp.load_params(f)
 
 
+class ProvenanceTest(unittest.TestCase):
+    """评审 P1 的代码护栏：字段合法 ≠ 有样本外成绩。
+
+    手写一份 K=4 的 JSON 能通过所有字段校验，但它没有任何对应的回测；
+    只有 run_monthly.py 导出、且指纹自洽的文件才允许引用 1.02 那份报告。
+    """
+    RESULT = "a" * 64
+
+    @staticmethod
+    def _write(d, obj):
+        f = Path(d) / "live_params.json"
+        f.write_text(json.dumps(obj), encoding="utf-8")
+        return f
+
+    def test_no_file_is_default_and_not_verified(self):
+        p, prov = lp.load_params_file()
+        self.assertEqual(p, lp.DEFAULT_PARAMS)
+        self.assertEqual(prov, {"source": "default", "verified": False})
+
+    def test_export_roundtrip_is_verified(self):
+        params = dict(lp.DEFAULT_PARAMS, weight="inv_vol")
+        export = lp.make_export(params, "20261111_120000", self.RESULT)
+        with tempfile.TemporaryDirectory() as d:
+            p, prov = lp.load_params_file(self._write(d, export))
+        self.assertEqual(p, params)
+        self.assertTrue(prov["verified"])
+        self.assertEqual(prov["source"], lp.EXPORT_SOURCE)
+        self.assertEqual(prov["run_id"], "20261111_120000")
+        self.assertEqual(prov["result_sha256"], self.RESULT)
+
+    def test_load_params_still_accepts_export(self):
+        export = lp.make_export(lp.DEFAULT_PARAMS, "r", self.RESULT)
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(lp.load_params(self._write(d, export)), lp.DEFAULT_PARAMS)
+
+    def test_plain_file_is_custom(self):
+        params = dict(lp.DEFAULT_PARAMS, k=4)
+        with tempfile.TemporaryDirectory() as d:
+            p, prov = lp.load_params_file(self._write(d, params))
+        self.assertEqual(p["k"], 4)
+        self.assertEqual(prov, {"source": "custom", "verified": False})
+
+    def test_tampered_params_rejected(self):
+        export = lp.make_export(lp.DEFAULT_PARAMS, "r", self.RESULT)
+        export["params"]["k"] = 9  # 指纹没跟着改，必须红
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(lp.ParamsError):
+                lp.load_params_file(self._write(d, export))
+
+    def test_forged_source_rejected(self):
+        export = lp.make_export(lp.DEFAULT_PARAMS, "r", self.RESULT)
+        export["source"] = "handwritten"
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(lp.ParamsError):
+                lp.load_params_file(self._write(d, export))
+
+    def test_missing_result_sha_rejected(self):
+        export = lp.make_export(lp.DEFAULT_PARAMS, "r", self.RESULT)
+        export.pop("result_sha256")
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(lp.ParamsError):
+                lp.load_params_file(self._write(d, export))
+
+    def test_bad_result_sha_rejected(self):
+        export = lp.make_export(lp.DEFAULT_PARAMS, "r", "not-a-sha")
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(lp.ParamsError):
+                lp.load_params_file(self._write(d, export))
+
+
 class WindowExportTest(unittest.TestCase):
     """run_monthly.py 导出的当期选参，必须能被 --params 原样读回去。"""
 

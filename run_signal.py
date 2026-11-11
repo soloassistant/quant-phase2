@@ -2,12 +2,14 @@
 
   python run_signal.py
 
-只复用回测同一套引擎/参数（xsec 的 12-1 横截面动量，K=3、等权、目标波动 10%、杠杆 ≤1.0），
-不另写排序或权重逻辑；本文件只做「取信号 + 排版 + 校验」。
+复用回测同一套引擎（xsec 横截面动量、t 收盘信号 / t+1 开盘成交、目标波动 10%、杠杆 ≤1.0），
+不另写排序或权重逻辑；本文件只做「取信号 + 排版 + 校验」。参数由 live_params 统一管理。
 
 ⚠️ 参数口径（评审 P1）：默认参数**不是** README 里 1.02 夏普那套（那套每年重新选参）。
-要用选参结果出信号，传 `--params <json>`；无论哪条路径，参数与 sha256 都会写进
-metrics.json 与 report.md，避免「用 A 的成绩证明 B 的持仓」。
+三条路径各自引用自己的成绩：不传参 -> 固定参数报告（Sharpe 0.969）；
+`--params runs/<id>/live_params.json` -> walk-forward 报告（Sharpe 1.02）；
+`--params` 指向手写文件 -> custom，**没有任何报告**，禁止引用本仓成绩。
+参数、来源与 sha256 都会写进 metrics.json 与 report.md，避免「用 A 的成绩证明 B 的持仓」。
 
 产物: signals/<YYYYMMDD_HHMMSS>/holdings.csv, report.md, metrics.json
 数据缺失/缺月/缺行情 -> 直接失败并指出文件与区间，禁止插值或前值填充。
@@ -82,15 +84,15 @@ def main():
     ap.add_argument("--end", help="数据截止 YYYY-MM-DD（默认用最新行）")
     ap.add_argument(
         "--params",
-        help="参数文件（JSON，字段同 live_params.DEFAULT_PARAMS）。"
-             "用选参结果出信号就指向 run_monthly.py 导出的 runs/<id>/live_params.json；"
-             "不传则用默认参数。两条路径各自引用自己的样本外报告。",
+        help="参数文件（JSON）。用选参结果出信号就指向 run_monthly.py 导出的 "
+             "runs/<id>/live_params.json；不传则用默认参数。手写参数文件会被标成 custom，"
+             "不引用任何样本外报告。",
     )
     ap.add_argument("--mutate", choices=("top5", "reverse"), help=argparse.SUPPRESS)
     args = ap.parse_args()
 
     try:
-        params = live_params.load_params(args.params)
+        params, provenance = live_params.load_params_file(args.params)
     except live_params.ParamsError as e:
         raise SystemExit(f"[参数错误] {e}")
     K = params["k"]
@@ -99,10 +101,17 @@ def main():
     WEIGHT = params["weight"]
     TARGET_VOL = params["target_vol"]
     params_sha = live_params.params_sha256(params)
-    # 用参数指纹选引用，而不是「有没有传 --params」：传一份内容等于默认值的文件，
-    # 也应引用固定参数那份报告，不能因为走了 --params 就借到 1.02 夏普。
-    is_default = params_sha == live_params.params_sha256(live_params.DEFAULT_PARAMS)
-    oos_ref = live_params.OOS_REFERENCE["default_params" if is_default else "walk_forward"]
+    # 引用哪份报告由「参数指纹 + 来源是否可信」共同决定：
+    # · 内容等于默认值 -> 固定参数报告（即使走了 --params 也借不到 1.02）；
+    # · 来自 run_monthly 的导出文件且指纹校验通过 -> walk-forward 报告；
+    # · 手写文件 -> custom，无报告。字段校验通过 ≠ 有样本外成绩。
+    if params_sha == live_params.params_sha256(live_params.DEFAULT_PARAMS):
+        ref_key = "default_params"
+    elif provenance["verified"] and provenance["source"] == live_params.EXPORT_SOURCE:
+        ref_key = "walk_forward"
+    else:
+        ref_key = "custom"
+    oos_ref = live_params.OOS_REFERENCE[ref_key]
 
     if args.mutate == "top5":
         raise SystemExit(f"[门禁失败] 持仓数被改成 K=5，锁定 K={K}；拒绝出信号")
@@ -204,6 +213,7 @@ def main():
                # 以及这组参数到底有没有对应的样本外成绩（评审 P1 的收口点）
                "params": params, "params_sha256": params_sha,
                "params_source": "default" if args.params is None else str(args.params),
+               "params_provenance": provenance, "oos_reference_key": ref_key,
                "params_display": live_params.describe(params),
                "oos_reference": oos_ref,
                "scale": round(scale, 12), "est_vol": round(est_vol, 12),
@@ -243,11 +253,17 @@ def main():
          f"- 命令：`{' '.join([sys.executable, str(Path(__file__)), *sys.argv[1:]])}`",
          f"- 数据截止 **{data_end.date()}**；信号日 **{sig_date.date()}**；成交日 **{exec_date}**",
          f"- 口径锁死：t 收盘信号 / t+1 开盘成交 / 月度 / 单边 {COST_BP:g}bp / 杠杆 ≤1.0",
-         f"- 参数：{live_params.describe(params)}（`{params_sha}`，来源 {payload['params_source']}）",
+         f"- 参数：{live_params.describe(params)}（`{params_sha}`，来源 {payload['params_source']}，"
+         f"出处 {provenance['source']}，已校验={provenance['verified']}）",
          f"- 参数对应的样本外成绩：{oos_ref['report'] or '**没有**'} —— {oos_ref['note']}",
-         ("" if args.params is not None else
-          "- ⚠️ **注意**：本报告用的是默认参数，仓库里**没有**这组参数的样本外报告。"
-          "README 里的 1.02 夏普来自「每年重新选参」的流程，不能拿来给这份持仓背书。"),
+         ("" if ref_key != "default_params" else
+          "- ⚠️ **注意**：本报告用的是默认参数，对应成绩是 "
+          "`experiments/out/fixed_default_oos.json`（Sharpe 0.969）；README 里的 1.02 "
+          "夏普来自「每年重新选参」的流程，不能拿来给这份持仓背书。"),
+         ("" if ref_key != "custom" else
+          "- ⚠️ **注意**：本次参数来自手写文件，**没有任何对应的样本外报告**，"
+          "禁止引用本仓 1.02 或 0.969 的成绩。要引用 walk-forward 成绩，"
+          "请把 `--params` 指向 `runs/<id>/live_params.json`。"),
          f"- `signal_sha256` **{signal_sha}** ｜ 脚本 `run_signal.py {sha_file(Path(__file__))[:16]}` ｜ "
          f"引擎 `xsec.py {sha_file(ROOT / 'xsec.py')[:16]}`",
          f"- `code_sha256` **{pc.code_sha256()}**（参与计算的源码按固定顺序合并哈希）",
@@ -257,7 +273,9 @@ def main():
     L.append("|" + "|".join(["---"] * len(headers)) + "|")
     for r in rows:
         L.append("| " + " | ".join(str(r[h]) for h in headers) + " |")
-    L.append(f"\n目标权重=未缩放 1/{K}；实际权重=经目标波动 {TARGET_VOL:.0%}、杠杆 ≤1.0 缩放后的值"
+    target_desc = f"等权 1/{K}" if WEIGHT == "equal" else "按波动倒数归一化"
+    L.append(f"\n目标权重=缩放前的组合内相对权重（{target_desc}）；实际权重=经目标波动 "
+             f"{TARGET_VOL:.0%}、杠杆 ≤1.0 缩放后的值"
              f"（缩放系数 {scale:.2f}，合计 {total*100:.2f}%，其余为现金）。\n")
     L.append("## 换手与成本预估\n")
     L.append("| 项目 | 值 |\n|---|---|")

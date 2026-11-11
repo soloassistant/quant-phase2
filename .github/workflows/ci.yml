@@ -1,8 +1,9 @@
 name: CI
 
-# 为什么只跑 unittest 不装依赖：测试刻意只覆盖不依赖 pandas 的纯逻辑
-# （交易日历 / 参数校验 / 成交价护栏 / 源码级回归）。装 pandas 需要下载
-# 20 年行情才能跑真回测，不适合放进每次 push。回测跑不跑在 README 里写清楚。
+# 两个 job：
+#   test   —— 纯 stdlib 测试（日历 / 参数校验 / 成交价护栏 / 源码级回归），不装依赖；
+#   parity —— 装 pandas/numpy，用确定性合成行情对照两套引擎的数值结果。
+#             不需要真实行情、也不是全量回测。全量回测的条件见 README「复现前置条件」。
 on:
   push:
     branches: [main]
@@ -27,3 +28,18 @@ jobs:
 
       - name: 单元测试
         run: python -m unittest discover -s tests -v
+
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装数值依赖（与 requirements.txt 同版本）
+        run: python -m pip install --disable-pip-version-check "pandas==3.1.1" "numpy==2.5.4"
+
+      - name: 两套引擎数值对照（合成行情，无需真实数据）
+        run: python -m unittest discover -s tests -p test_engine_parity.py -v

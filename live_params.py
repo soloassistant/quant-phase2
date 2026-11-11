@@ -5,7 +5,9 @@
 把参数集中到这里之后：
 · 出信号时会把这套参数与它的 sha256 写进 metrics.json，谁引用都能核对；
 · `--params` 可以指向 run_monthly.py 导出的当期选参 JSON，让实盘用上选出来的参数；
-· 不传参时用 DEFAULT_PARAMS，报告里引用它自己那份样本外成绩，不再借用 1.02 夏普。
+· 不传参时用 DEFAULT_PARAMS，报告里引用它自己那份样本外成绩，不再借用 1.02 夏普；
+· **只有带来源标记的导出文件才能引用 walk-forward 成绩**。手写一份 K=4 的 JSON
+  同样能通过字段校验，但它没有对应的样本外报告，必须标成 custom 并禁止背书。
 
 本模块**不 import pandas**，因此可在干净环境里直接用 unittest 跑（CI 不装第三方依赖）。
 """
@@ -13,10 +15,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
-__all__ = ["DEFAULT_PARAMS", "OOS_REFERENCE", "ParamsError", "params_sha256",
-           "validate_params", "load_params", "params_from_window", "describe"]
+__all__ = ["DEFAULT_PARAMS", "OOS_REFERENCE", "EXPORT_SOURCE", "ParamsError",
+           "params_sha256", "validate_params", "load_params", "load_params_file",
+           "make_export", "params_from_window", "describe"]
+
+# run_monthly.py 导出的选参结果专用标记。手写文件不得自称是这个来源。
+EXPORT_SOURCE = "run_monthly.walk_forward"
+_HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 # 实盘默认参数：与历史「1.02 夏普」那套**不是**同一组（后者来自每年重新选参）。
 DEFAULT_PARAMS = {
@@ -41,6 +49,11 @@ OOS_REFERENCE = {
         "report": "experiments/out/fixed_default_oos.json",
         "note": "独立样本外成绩（Sharpe 0.969）；复算 python experiments/fixed_default_oos.py，"
                 "不得与 walk-forward 的 1.02 混用",
+    },
+    "custom": {
+        "params": "自行编写的参数文件（非 run_monthly.py 导出）",
+        "report": None,
+        "note": "没有任何对应的样本外报告；禁止引用本仓的 1.02 或 0.969 成绩",
     },
 }
 
@@ -117,10 +130,26 @@ def validate_params(params: dict) -> dict:
     return _validate(params)
 
 
-def load_params(path: str | Path | None = None) -> dict:
-    """读取参数文件；不传则返回默认参数。文件必须含全部字段。"""
+def make_export(params: dict, run_id: str, result_sha256: str) -> dict:
+    """生成 run_monthly.py 落盘的选参文件：参数 + 来源 + 可核对的指纹。
+
+    `params_sha256` 让下游能发现「参数被改过但来源标记还在」；
+    `result_sha256` 把这份选参钉到产生它的那次回测上。
+    """
+    p = validate_params(params)
+    return {"params": p, "source": EXPORT_SOURCE, "run_id": str(run_id),
+            "params_sha256": params_sha256(p), "result_sha256": str(result_sha256)}
+
+
+def load_params_file(path: str | Path | None = None) -> tuple[dict, dict]:
+    """读取参数文件，返回 (参数, 出处)。出处决定能不能引用样本外成绩。
+
+    - 不传文件        -> ("default", verified=False)
+    - 纯参数字典      -> ("custom",  verified=False)  手写文件，无报告
+    - 导出格式        -> (EXPORT_SOURCE, verified=True)，且指纹/来源全部校验通过
+    """
     if path is None:
-        return _validate(DEFAULT_PARAMS)
+        return _validate(DEFAULT_PARAMS), {"source": "default", "verified": False}
     p = Path(path)
     if not p.exists():
         raise ParamsError(f"参数文件不存在: {p}")
@@ -130,7 +159,30 @@ def load_params(path: str | Path | None = None) -> dict:
         raise ParamsError(f"参数文件不是合法 JSON: {p} ({e})") from e
     if not isinstance(raw, dict):
         raise ParamsError(f"参数文件顶层必须是对象: {p}")
-    return _validate(raw)
+
+    if "params" in raw or "source" in raw:
+        if raw.get("source") != EXPORT_SOURCE:
+            raise ParamsError(f"参数文件声明的来源 {raw.get('source')!r} 不是 {EXPORT_SOURCE!r}；"
+                              f"只有 run_monthly.py 导出的选参文件才能引用 walk-forward 成绩")
+        if not isinstance(raw.get("params"), dict):
+            raise ParamsError(f"导出文件缺少 params 对象: {p}")
+        params = _validate(raw["params"])
+        if raw.get("params_sha256") != params_sha256(params):
+            raise ParamsError(f"参数指纹不符，文件可能被改过: {p}")
+        run_id, result_sha = raw.get("run_id"), raw.get("result_sha256")
+        if not isinstance(run_id, str) or not run_id:
+            raise ParamsError(f"导出文件缺少 run_id: {p}")
+        if not isinstance(result_sha, str) or not _HEX64.match(result_sha):
+            raise ParamsError(f"导出文件缺少合法的 result_sha256: {p}")
+        return params, {"source": EXPORT_SOURCE, "verified": True,
+                        "run_id": run_id, "result_sha256": result_sha}
+
+    return _validate(raw), {"source": "custom", "verified": False}
+
+
+def load_params(path: str | Path | None = None) -> dict:
+    """只取参数，不关心出处；保留给不需要引用样本外成绩的调用方。"""
+    return load_params_file(path)[0]
 
 
 def params_from_window(window: dict, mom_days: dict) -> dict:

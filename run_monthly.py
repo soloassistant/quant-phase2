@@ -220,8 +220,11 @@ def main():
     # 当期选参导出：让 run_signal.py --params 能真的用上本次 walk-forward 选出的参数。
     # 映射与校验收口在 live_params（无 pandas 依赖），不在这里再抄一份中文展示值转换。
     live = live_params.params_from_window(windows[-1], pc.MOM_MONTHS)
+    # 带来源标记与 result_sha256：run_signal.py 只认这份导出，手写的参数文件
+    # 会被标成 custom、不给任何样本外成绩背书（评审 P1 的代码护栏）。
+    export = live_params.make_export(live, run_dir.name, result_sha)
     (run_dir / "live_params.json").write_text(
-        json.dumps(live, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        json.dumps(export, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     scripts = (f"run_monthly.py {sha_file(ROOT / 'run_monthly.py')[:16]} / "
                f"pipeline_core.py {sha_file(ROOT / 'pipeline_core.py')[:16]} / "
