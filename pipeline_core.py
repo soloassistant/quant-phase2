@@ -72,7 +72,11 @@ def validate(data, start, end):
         if df["date"].max() < end:
             problems.append(f"{p}: 区间缺失 {df['date'].max().date()} 之后 → {end.date()}（文件末行 "
                             f"{df['date'].max().date()}）")
-        miss_days = [d for d in cal if start <= d <= end and d not in set(inwin["date"])]
+        # 关键性能 fix：set(inwin["date"]) 原先写在列表推导内部，每个 d 都重建一次
+        # （5243 天 × 10 文件 ≈ 5.2 万次重建），实测 validate 跑 ~193s。
+        # 提到循环外只建一次，validate 降到毫秒级，且缺天计数逐位不变。
+        inwin_dates = set(inwin["date"])
+        miss_days = [d for d in cal if start <= d <= end and d not in inwin_dates]
         if miss_days:
             problems.append(f"{p}: 缺行情 {len(miss_days)} 天，最早 {miss_days[0].date()}，"
                             f"最晚 {miss_days[-1].date()}")
