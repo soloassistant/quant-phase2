@@ -131,6 +131,19 @@ def main():
         w, _ = xsec.make_target(close_df, ret_f, i, 3, 252, False, "equal", 0.10)
         return w.reindex(cols).to_numpy(dtype=float)
 
+    def t_ours_combo(i, cur_w):
+        # 真·合成：市场级避险(SPY<10月均线→全现金) + 动量选股 + 个股趋势过滤(跌破均线转现金)
+        s = sma.iloc[i]["SPY"]
+        if pd.notna(s) and close_df.iloc[i]["SPY"] < s:
+            return np.zeros(len(cols))
+        w, _ = xsec.make_target(close_df, ret_f, i, 3, 252, False, "equal", 0.10)
+        wv = w.reindex(cols).to_numpy(dtype=float).copy()
+        for j, c in enumerate(cols):
+            sc_ = sma.iloc[i][c]
+            if not (pd.notna(sc_) and close_df.iloc[i][c] > sc_):
+                wv[j] = 0.0
+        return wv
+
     def make_faber(universe):
         we = 1.0 / len(universe)
         def f(i, cur_w):
@@ -166,6 +179,7 @@ def main():
         "ours_band20": (t_ours_band20, "经济改良：换手带 20%"),
         "ours_trend":  (t_ours_trend, "经济改良：动量选股 + 10月均线趋势过滤"),
         "ours_mkt":    (t_ours_mkt, "经济改良：动量选股 + SPY 10月均线市场避险"),
+        "ours_combo":  (t_ours_combo, "合成：市场避险 + 动量选股 + 个股趋势过滤"),
         "faber5":      (make_faber(["SPY", "EFA", "IEF", "DBC", "VNQ"]), "Faber TAA 5资产/10月均线"),
         "taa10":       (make_faber(list(cols)), "Faber 式趋势过滤 全10只"),
         "dm":          (t_dm, "Dual Momentum 12月"),
