@@ -78,67 +78,57 @@ def metrics(nav: pd.Series):
                 calmar=float(cagr / abs(mdd)) if mdd else float("nan"))
 
 
-def ashare_backtest(stocks, top_k=K, cost=COST_A):
-    """stocks: {code: df(date-indexed, 有 open/close)}。返回 top-K 策略与等权全池的 nav。"""
-    # 对齐到并集日历
+def ashare_sim(stocks, rule="mom", top_k=K, cost=COST_A):
+    """rule ∈ {ew, trend_ew, mom, mom_nosma}。返回 (nav, cal)。"""
     cal = pd.DatetimeIndex(sorted(set().union(*[set(df.index) for df in stocks.values()])))
     close = pd.DataFrame({c: stocks[c]["close"].reindex(cal) for c in stocks}, index=cal)
     openp = pd.DataFrame({c: stocks[c]["open"].reindex(cal) for c in stocks}, index=cal)
     close_ff = close.ffill()
-    open_np = openp.to_numpy(dtype=float)
+    open_np = openp.ffill().to_numpy(dtype=float)
     close_np = close_ff.to_numpy(dtype=float)
     mom = (close_ff.shift(21) / close_ff.shift(252) - 1.0).to_numpy(dtype=float)
     sma200 = close_ff.rolling(200, min_periods=200).mean().to_numpy(dtype=float)
     flags = xsec.month_end_flags(cal)
-
-    start_i = 252  # 需要 12-1 动量
-    end_i = len(cal) - 1
+    start_i, end_i = 252, len(cal) - 1
     M = len(stocks)
-    cols = list(stocks.keys())
 
-    def run_sim(target_fn):
-        cash, sh = 100.0, np.zeros(M)
-        pending, navs = None, []
-        for i in range(start_i, end_i + 1):
-            if pending is not None:
-                px = open_np[i]
-                trad = ~np.isnan(px) & (px > 0)
-                w = np.where(trad, pending, 0.0)
-                cur_val = sh * np.where(np.isnan(px), 0.0, px)
-                pv = cash + float(np.nansum(cur_val))
-                costv, tv = 0.0, np.zeros(M)
-                for _ in range(4):
-                    tv = w * (pv - costv)
-                    costv = float(np.nansum(np.abs(tv - cur_val))) * cost
-                trade_val = tv - cur_val
-                cash = cash - float(np.nansum(trade_val)) - costv
-                sh = np.where(trad, tv / np.where(trad, px, 1.0), 0.0)
-                pending = None
-            nav = cash + float(np.nansum(sh * close_np[i]))
-            navs.append(nav)
-            if flags[i] and i + 1 <= end_i:
-                pending = target_fn(i)
-        return pd.Series(navs, index=cal[start_i:end_i + 1])
-
-    def t_mom(i):
-        c = close_np[i]; m = mom[i]; s = sma200[i]
-        valid = (~np.isnan(c)) & (~np.isnan(m)) & (~np.isnan(s)) & (c > s) & (m > 0)
-        idx = np.where(valid)[0]
-        w = np.zeros(M)
-        if len(idx):
-            top = idx[np.argsort(-m[idx])[:top_k]]
-            w[top] = 1.0 / len(top)
+    def tf(i):
+        c = close_np[i]; w = np.zeros(M); v = ~np.isnan(c)
+        if rule == "ew":
+            if v.any():
+                w[v] = 1.0 / v.sum()
+        elif rule == "trend_ew":
+            s = sma200[i]; m = v & (~np.isnan(s)) & (c > s)
+            if m.any():
+                w[m] = 1.0 / m.sum()
+        else:  # mom / mom_nosma
+            m_ = mom[i]
+            msk = v & (~np.isnan(m_)) & (m_ > 0)
+            if rule == "mom":
+                s2 = sma200[i]; msk = msk & (~np.isnan(s2)) & (c > s2)
+            idx = np.where(msk)[0]
+            if len(idx):
+                top = idx[np.argsort(-m_[idx])[:top_k]]
+                w[top] = 1.0 / len(top)
         return w
 
-    def t_ew(i):
-        c = close_np[i]
-        valid = ~np.isnan(c)
-        w = np.zeros(M)
-        if valid.any():
-            w[valid] = 1.0 / int(valid.sum())
-        return w
-
-    return run_sim(t_mom), run_sim(t_ew), cal
+    cash, sh = 100.0, np.zeros(M); pending, navs = None, []
+    for i in range(start_i, end_i + 1):
+        if pending is not None:
+            px = open_np[i]; trad = ~np.isnan(px) & (px > 0)
+            w = np.where(trad, pending, 0.0)
+            cur_val = sh * np.where(np.isnan(px), 0.0, px)
+            pv = cash + float(np.nansum(cur_val))
+            costv, tv = 0.0, np.zeros(M)
+            for _ in range(4):
+                tv = w * (pv - costv); costv = float(np.nansum(np.abs(tv - cur_val))) * cost
+            d = tv - cur_val
+            cash = cash - float(np.nansum(d)) - costv
+            sh = np.where(trad, tv / np.where(trad, px, 1.0), 0.0); pending = None
+        navs.append(cash + float(np.nansum(sh * close_np[i])))
+        if flags[i] and i + 1 <= end_i:
+            pending = tf(i)
+    return pd.Series(navs, index=cal[start_i:end_i + 1]), cal
 
 
 def main():
@@ -222,17 +212,20 @@ def main():
     print(f"分档 {dict(cnt)}  合计 {total} / {len(meta['rows'])}  {'PASS' if ok4 else 'FAIL'}")
     report["reproducibility"] = {"tiers": dict(cnt), "total": total, "pass": ok4}
 
-    # ---------- 5. A 股池内回测 ----------
-    banner("5) A 股池内动量+趋势回测（⚠ 幸存者偏差）")
-    nav_top, nav_ew, acal = ashare_backtest(astocks, top_k=K, cost=COST_A)
-    m_top, m_ew = metrics(nav_top), metrics(nav_ew)
+    # ---------- 5. A 股池内回测（多规则） ----------
+    banner("5) A 股池内回测：多种规则对比（⚠ 幸存者偏差）")
+    rules = [("等权全池(EW)", "ew"), ("趋势等权(>200日线)", "trend_ew"),
+             ("动量top10+趋势", "mom"), ("动量top10(无趋势)", "mom_nosma")]
+    print(f"{'规则':22s}{'CAGR':>8s}{'波动':>8s}{'Sharpe':>8s}{'MDD':>9s}{'Calmar':>8s}")
+    ab = {}
+    for nm, rule in rules:
+        nav, acal = ashare_sim(astocks, rule=rule, top_k=K, cost=COST_A)
+        m = metrics(nav); ab[nm] = m
+        print(f"{nm:22s}{m['cagr']*100:7.2f}%{m['vol']*100:7.2f}%{m['sharpe']:8.3f}{m['mdd']*100:8.2f}%{m['calmar']:8.3f}")
     print(f"区间 {acal[252].date()} → {acal[-1].date()}（池内，非全市场）")
-    print(f"{'策略':16s}{'CAGR':>8s}{'波动':>8s}{'Sharpe':>8s}{'MDD':>9s}{'Calmar':>8s}")
-    for nm, m in [("动量+趋势 top10", m_top), ("等权全池", m_ew)]:
-        print(f"{nm:16s}{m['cagr']*100:7.2f}%{m['vol']*100:7.2f}%{m['sharpe']:8.3f}{m['mdd']*100:8.2f}%{m['calmar']:8.3f}")
-    print("注意：池=今天便宜的 59 只（幸存者/选择偏差），这不是可交易策略的回测，只说明池内动量有没有用。")
+    print("结论：这池子里动量/趋势筛选都跑输等权——便宜股池整体反弹，等权吃到、筛选反而躲掉或买错。")
     report["ashare_backtest"] = {"start": str(acal[252].date()), "end": str(acal[-1].date()),
-                                 "topk": m_top, "ew": m_ew, "cost_oneway": COST_A, "K": K}
+                                 "rules": ab, "cost_oneway": COST_A, "K": K}
 
     # ---------- 汇总 ----------
     banner("自查汇总")
