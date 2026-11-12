@@ -16,3 +16,4 @@ state/
 *.env
 .env.*
 **/.alpaca/
+data_ashare/
