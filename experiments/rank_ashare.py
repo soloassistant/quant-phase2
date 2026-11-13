@@ -44,6 +44,7 @@ BLACKSWAN_5D = -0.25
 AMT_MIN_YI = 0.50       # 20 日均成交额下限（亿元）：低于此视为难以建仓
 TOP_CORE = 12
 RS_WIN = 120
+SLOPE_WIN = 20          # SMA200 斜率回看窗口
 PEG_FULL, PEG_ZERO = 0.30, 1.00   # PEG<=0.30 记满分，PEG>=1.00 记 0 分，中间线性
 DISC_FULL, DISC_ZERO = 0.30, 0.00  # 折价>=30% 记满分，无折价记 0 分
 
@@ -96,6 +97,10 @@ def diag_one(code, idx):
     sma = c.rolling(200, min_periods=200).mean()
     sv = float(sma.iloc[-1]) if pd.notna(sma.iloc[-1]) else float('nan')
     d['dist_sma200'] = float(c.iloc[-1] / sv - 1) if sv == sv else float('nan')
+    # SMA200 自身斜率：'价在均线上'不等于'趋势向上'——均线还在下行时，只是刚被上穿（未确认）。
+    # 目检海大集团即此形态：180日 57.5→40.5 再反弹到 49，SMA200 仍 -1.37%/20日。
+    sl = sma.iloc[-1] / sma.iloc[-SLOPE_WIN - 1] - 1 if len(sma.dropna()) > SLOPE_WIN else np.nan
+    d['sma200_slope'] = float(sl) if pd.notna(sl) else float('nan')
     w = min(250, n)
     d['max_1d'] = float(c.pct_change().iloc[-w:].min())
     d['max_5d'] = float((c / c.shift(5) - 1).iloc[-w:].min())
@@ -150,6 +155,8 @@ def main():
             rs.append('不够便宜')
         if not (np.isfinite(r.get('dist_sma200', np.nan)) and r['dist_sma200'] > 0):
             rs.append('未站上200日线')
+        elif not (np.isfinite(r.get('sma200_slope', np.nan)) and r['sma200_slope'] > 0):
+            rs.append('200日线下行')   # 价在上但均线在下 = 刚被上穿，趋势未确认
         if not (np.isfinite(r.get('excess300', np.nan)) and r['excess300'] > 0):
             rs.append('跑输沪深300')
         if (np.isfinite(r.get('max_1d', np.nan)) and r['max_1d'] < BLACKSWAN_1D) or \
@@ -186,6 +193,7 @@ def main():
         'gates': {'cheap_min': CHEAP_MIN, 'cheap_scale':
                   f"PEG {PEG_ZERO}→0 / {PEG_FULL}→1；PE·PB 分位 1-分位；折价 {DISC_FULL:.0%}→1",
                   'abs_trend': 'dist_sma200>0', 'beat_index': 'excess300>0(近120日)',
+                  'slope': f'SMA200 近{SLOPE_WIN}日变化>0',
                   'bs1': BLACKSWAN_1D, 'bs5': BLACKSWAN_5D, 'amt_min_yi': AMT_MIN_YI},
         'n_total': len(FUND), 'n_veto': len(FUND) - len(surv),
         'veto_breakdown': dict(vc), 'n_survivor': len(surv),
@@ -201,12 +209,12 @@ def main():
 
     print(f"总{len(FUND)}  否决 {len(FUND)-len(surv)}  幸存 {len(surv)}  明细 {dict(vc)}")
     if surv:
-        print(f"{'#':>2}{'代码':7s}{'名称':10s}{'体系':5s}{'便宜':>6s}{'距200':>7s}{'120日':>7s}{'超300':>7s}{'成交额亿':>8s}")
+        print(f"{'#':>2}{'代码':7s}{'名称':10s}{'体系':5s}{'便宜':>6s}{'距200':>7s}{'120日':>7s}{'超300':>7s}{'斜率':>7s}{'额亿':>7s}")
         for c in surv[:TOP_CORE]:
             r = rows[c]
             print(f"{r['rank']:>2}{c:7s}{r['name']:10s}{r['system']:5s}{r['cheap']:6.2f}"
                   f"{r['dist_sma200']*100:6.1f}%{r['ret_120']*100:6.0f}%"
-                  f"{r['excess300']*100:+6.0f}%{r['amt20_yi']:8.1f}")
+                  f"{r['excess300']*100:+6.0f}%{r['sma200_slope']*100:+6.2f}%{r['amt20_yi']:7.1f}")
 
 
 if __name__ == '__main__':
